@@ -19,31 +19,25 @@ import {
 // Load environment variable
 dotenv.config();
 
+
 // Initiate sender wallet, treasury wallet and connection to Solana
 const QUICKNODE_KEY = process.env.QUICKNODE_RPC_KEY
 const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_KEY}/`;
-const WALLET = getKeypairFromEnvironment();
 
 // Initialize UMI instance
-const umi = createUmi(QUICKNODE_RPC)
+const newUMI = createUmi(QUICKNODE_RPC)
+
+// Load wallet
+const WALLET_PATH = '/home/dan/gamebook/secrets/GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z.json'
+const secretKey = JSON.parse(fs.readFileSync(WALLET_PATH, 'utf-8'))
+const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
+
+// Initialize UMI instance with wallet
+const umi = newUMI
   .use(mplCore())
   .use(irysUploader())
-  .use(keypairIdentity(WALLET));
+  .use(keypairIdentity(keypair));
 
-// Function to convert private key string to Uint8Array
-function getKeypairFromEnvironment(): Keypair {
-  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
-  if (!privateKeyString) {
-    throw new Error('Minter key is not set in environment variables');
-  }
-  // Convert the private key string to an array of numbers
-  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
-  // Create a Uint8Array from the array of numbers
-  const privateKeyUint8Array = new Uint8Array(privateKeyArray);
-  // Create and return the Keypair
-  return Keypair.fromSecretKey(privateKeyUint8Array);
-}
-   
 ///// AI LOGIC
   const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 //   const groq_client = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -56,8 +50,6 @@ function getKeypairFromEnvironment(): Keypair {
     imgName: string;
     description: string;
     attributes: Array<{trait_type: string, value: string}>;
-    sellerFeeBasisPoints: number;
-    creators: Array<{address: PublicKey, share: number}>;
 }
 
   async function defineConfig(storySoFar: string): Promise<NFTConfig> {
@@ -119,10 +111,6 @@ function getKeypairFromEnvironment(): Keypair {
                 {trait_type: 'Logical Choice', value: llmResponse.logical_choice},
                 {trait_type: 'Prudent Choice', value: llmResponse.prudent_choice},
                 {trait_type: 'Reckless Choice', value: llmResponse.reckless_choice}
-            ],
-            sellerFeeBasisPoints: 0,
-            creators: [
-                {address: WALLET.publicKey, share: 100}
             ]
         };
 
