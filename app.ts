@@ -7,15 +7,24 @@ import { create } from '@metaplex-foundation/mpl-core'
 import { fetchAsset } from '@metaplex-foundation/mpl-core'
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-// import Groq from "groq-sdk";
 import axios from 'axios';
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
 import * as path from 'path';
+// Solana-related imports
+import { 
+  ACTIONS_CORS_HEADERS, 
+  ActionGetResponse, 
+  ActionPostRequest, 
+  ActionPostResponse, 
+  createPostResponse 
+} from '@solana/actions';
+// Third-party modules
+import cors from 'cors';
+import express, { Request, Response } from 'express';
 
-// Load environment variable
+/// Load environment variable
 dotenv.config();
-
 
 // Initiate sender wallet, treasury wallet and connection to Solana
 const QUICKNODE_KEY = process.env.QUICKNODE_RPC_KEY
@@ -254,6 +263,9 @@ async function goFetch(assetAddress) {
   }
 }
 
+// Declaring global assetAddress
+let assetAddress: string = "2A2LMNeBucYBHteoa9GiFHRggRhJBBLzaetzpSHvTCT3";
+
 async function main() {
   try {
     // Initial story setup
@@ -278,7 +290,7 @@ async function main() {
     // Step 4: Create the asset (mint the NFT)
     console.log("Creating asset...");
     const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-    const assetAddress = await createAsset(uriConfig);
+    assetAddress = await createAsset(uriConfig);
     const assetURL = uriConfig.imageURI
     console.log("Asset created with address:", assetAddress);
     console.log("Asset URL:", assetURL)
@@ -291,6 +303,71 @@ async function main() {
     console.error("An error occurred in the main process:", error);
   }
 }
- 
-  // Run the main function
-  main().then(() => console.log("Main function executed")).catch(console.error);
+  
+/////// APP ///////
+// Create a new express application instance
+const app: express.Application = express();
+app.use(cors());
+
+app.get('/get_action', async (req, res) => {
+  try {
+    if (!assetAddress) {
+      throw new Error('Asset address not set');
+    }
+
+    // Fetch the asset using the provided UMI instance
+    const asset = await fetchAsset(umi, assetAddress);
+
+    // Get the asset's URI
+    const assetUri = asset.uri;
+
+    // Fetch the metadata from the asset's URI
+    const response = await axios.get(assetUri);
+    const metadata = response.data;
+
+    // Extract the required information from the metadata
+    const { description, attributes } = metadata;
+    const [choiceOne, choiceTwo, choiceThree] = attributes.map(attr => attr.value);
+
+    const payload: ActionGetResponse = {
+      icon: new URL(metadata.imageURI).toString(),
+      label: "Continue Journey",
+      title: "Toly's Adventure",
+      description: description,
+      links: {
+        actions: [
+          {
+            "label": choiceOne,
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
+          },
+          {
+            "label": choiceTwo,
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
+          },
+          {
+            "label": choiceThree,
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
+          }
+        ]
+      }
+    };
+
+    res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
+  } catch (error) {
+    console.error("Error handling GET request:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.options('/post_action', (req: Request, res: Response) => {
+res.header(ACTIONS_CORS_HEADERS).status(200).end();
+});
+
+// Initialize port and start dev server
+const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
+app.listen(port, () => {
+  console.log(`Listening at http://localhost:${port}/`);
+  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/devnet`)
+});
+
+export default app;
