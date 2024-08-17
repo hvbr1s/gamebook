@@ -1,17 +1,14 @@
-import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
-import { mplCore } from '@metaplex-foundation/mpl-core'
-import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
-import { keypairIdentity } from '@metaplex-foundation/umi'
-import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
-import { create } from '@metaplex-foundation/mpl-core'
-import { fetchAsset } from '@metaplex-foundation/mpl-core'
+// Node.js built-in modules
+import { promises as promise } from 'fs';
+import * as fs from 'fs';
+import * as path from 'path';
+// Third-party modules
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import axios from 'axios';
 import fetch from 'node-fetch';
-import { promises as promise } from 'fs';
-import * as fs from 'fs';
-import * as path from 'path';
+import cors from 'cors';
+import express, { Request, Response } from 'express';
 // Solana-related imports
 import { 
   ACTIONS_CORS_HEADERS, 
@@ -23,18 +20,20 @@ import {
 import { 
   Connection, 
   ComputeBudgetProgram,
-  Keypair, 
   LAMPORTS_PER_SOL,
   PublicKey, 
   SystemProgram,
   Transaction, 
-  TransactionInstruction, 
+  TransactionInstruction,
   TransactionSignature,
-  clusterApiUrl 
 } from '@solana/web3.js';
-// Third-party modules
-import cors from 'cors';
-import express, { Request, Response } from 'express';
+import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
+// Metaplex-related imports
+import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
+import { mplCore } from '@metaplex-foundation/mpl-core';
+import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
+import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
+import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 
 /// Load environment variable
 dotenv.config();
@@ -111,7 +110,7 @@ async function consequence(description,playerChoice): Promise<string>{
                 '${description}'
                 Toly decided the following:
                 '${playerChoice}'
-                Please write the consequences of Toly's action on the story.
+                Please write ONE SENTENCE about the direct consequences of Toly's action on the story.
             `
         }
     ],
@@ -124,7 +123,7 @@ const storyContinues = generateStory.choices[0].message.content;
 return storyContinues
 }
 
-async function defineConfig(storySoFar: string): Promise<NFTConfig> {
+async function defineConfig(storySoFar: string, choiceConsequence: string): Promise<NFTConfig> {
     try {
         const nftAttributes = await oai_client.chat.completions.create({
             messages: [
@@ -142,7 +141,7 @@ async function defineConfig(storySoFar: string): Promise<NFTConfig> {
 
                         1. The "story_continues" should be a brief, engaging scene (50-100 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
                         2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
-                        3. Provide three distinct choices for Toly, each reflecting a different approach:
+                        3. Provide three distinct choices for Toly, each reflecting a different approach (6 words maximum):
                            - "logical_choice": A rational, well-thought-out option.
                            - "prudent_choice": A careful, risk-averse option.
                            - "reckless_choice": A bold, potentially dangerous option.
@@ -178,7 +177,7 @@ async function defineConfig(storySoFar: string): Promise<NFTConfig> {
             imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
-            description: llmResponse.story_continues,
+            description: `${choiceConsequence} ${llmResponse.story_continues}`,
             attributes: [
                 {trait_type: 'Logical Choice', value: llmResponse.logical_choice},
                 {trait_type: 'Prudent Choice', value: llmResponse.prudent_choice},
@@ -197,7 +196,10 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The image should capture the essence of the scene WITHOUT showing text or specific choices. Style: Watercolor.`;
+      The protagonist wears a red metallic helmet that masks his head, body type could be male or female.
+      The image should capture the essence of the scene without showing text or specific choices. 
+      IMPORTANT: DO NOT GENERATE TEXT.
+      Style: Watercolor.`;
   
       const response = await oai_client.images.generate({
         model: "dall-e-3",
@@ -330,7 +332,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "2A2LMNeBucYBHteoa9GiFHRggRhJBBLzaetzpSHvTCT3";
+let assetAddress: string = "DPYfKcTo7WMyELs3HUPzA4DNe1QFXMJxANn29YAmkgee";
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -360,8 +362,8 @@ app.get('/get_action', async (req, res) => {
 
     const payload: ActionGetResponse = {
       icon: new URL(metadata.imageURI).toString(),
-      label: "Continue Journey",
-      title: "Toly's Adventure",
+      label: "Continue Toly's Journey",
+      title: "Toly's Adventure⚔️",
       description: description,
       links: {
         actions: [
@@ -392,146 +394,187 @@ app.options('/post_action', (req: Request, res: Response) => {
 res.header(ACTIONS_CORS_HEADERS).status(200).end();
 });
 
+app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
+  try {
+    // Fetch the asset using the provided UMI instance
+    if (!assetAddress) {
+      throw new Error('Asset address is not defined');
+    }
+    const asset = await fetchAsset(umi, assetAddress);
+    const assetUri = asset.uri;
+    const response = await axios.get(assetUri);
+    const metadata = response.data;
+    const { description } = metadata;
+    console.log(description);
 
-  // Fetch the asset using the provided UMI instance
-  const asset = await fetchAsset(umi, assetAddress);
+    const playerChoice = typeof req.query.choice === 'string' 
+      ? decodeURIComponent(req.query.choice) 
+      : '';
+    console.log(playerChoice);
+    
+    let user_account: PublicKey;
+    try {
+      const body: ActionPostRequest = req.body;
+      user_account = new PublicKey(body.account);
+      console.log(user_account);
+    } catch (error) {
+      console.error('Invalid account:', error);
+      return res.status(400).json({ error: 'Invalid account' });
+    }
 
-  // Get the asset's URI
-  const assetUri = asset.uri;
+    const connection = await createNewConnection(QUICKNODE_RPC);
+    const transaction = new Transaction();
 
-  // Fetch the metadata from the asset's URI
-  const response = await axios.get(assetUri);
-  const metadata = response.data;
+    const { blockhash } = await connection.getLatestBlockhash();
+    const mintingFee = await getFeeInLamports(connection);
+    const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
+    console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
 
-  // Extract the required information from the metadata
-  const { description } = metadata;
-  console.log(description)
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: user_account,
+        toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+        lamports: mintingFee,
+      })
+    );
+    const memo = (Math.floor(Math.random() * 100000)).toString();
+    // Adding memo
+    transaction.add(
+      new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memo, 'utf-8'),
+      })
+    );
 
-  const playerChoice =req.query.choice
-  console.log(playerChoice)
-  const body: ActionPostRequest = req.body;
+    // Set computational resources for transaction
+    transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 20_000 }))
+    transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100 }))
 
-  let user_account: PublicKey
-      try {
-        user_account = new PublicKey(body.account)
-      } catch (error) {
-        return res.status(400).json({ error: 'Invalid account' });
-      }
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = user_account;
 
-      const connection = await createNewConnection(QUICKNODE_RPC)
-      const transaction = new Transaction();
-
-      // Get the latest blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-
-      // Get fee price
-      const mintingFee =  await getFeeInLamports(connection);
-      const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
-      console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`)
-
-      // Adding payment
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: user_account,
-          toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
-          lamports: mintingFee,
-        })
-      );
-
-      // Set computational resources for transaction
-      transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }))
-      transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10_000 }))
-
-      // Set transaction's blockchash and fee payer
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = user_account;
-
-      const payload: ActionPostResponse = await createPostResponse({
-        fields:{
+    const payload: ActionPostResponse = await createPostResponse({
+      fields: {
         transaction: transaction,
-        message: "Your NFT is on the way, check your wallet in a few minutes!",
-        },
-      });
+        message: "The adventure continues! Refresh this page in a minute to see what happens next!",
+      },
+    });
 
-      res.status(200).json(payload);
+    res.status(200).json(payload);
+    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
-      // New code to check for transaction finalization
-      try {
-        const connection = await createNewConnection(QUICKNODE_RPC);
-        const signature = await connection.sendRawTransaction(transaction.serialize());
-        
-        console.log('Transaction sent. Signature:', signature);
-    
-        // Wait for transaction confirmation
-        const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-        
-        if (confirmation.value.err) {
-          console.error('Transaction failed:', confirmation.value.err);
-          return; // Exit the function if transaction failed
-        }
-    
-        console.log('Transaction confirmed. Proceeding with the next steps...');
-    
-        // Proceed with the next steps (choiceConsequences, etc.)
-        const choiceConsequence = await consequence(description, playerChoice);
-        console.log(choiceConsequence);
-        const continueStory = onceUponATime + choiceConsequence;
-    
-        try {
-          // Step 1: Define the config for the new scene
-          console.log("Defining config for the new scene...");
-          const CONFIG = await defineConfig(continueStory);
-          console.log("Config defined:", CONFIG);
-  
-          // Step 2: Create the image
-          console.log("Creating image...");
-          const imagePath = await createImage(CONFIG);
-          console.log("Image created at:", imagePath);
-      
-          // Step 3: Create URI (upload image and metadata)
-          console.log("Creating URI...");
-          const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-          const uri = await createURI(imagePath, CONFIG);
-          console.log("Metadata URI created:", uri);
-      
-          // Step 4: Create the asset (mint the NFT)
-          console.log("Creating asset...");
-          const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-          assetAddress = await createAsset(uriConfig);
-          const assetURL = uriConfig.imageURI
-          console.log("Asset created with address:", assetAddress);
-          console.log("Asset URL:", assetURL)
-      
-          // Step 5: Delete the local asset image
-          fs.unlink(imagePath, (err) => {
-            if (err) {
-              console.error('Failed to delete the local image file:', err);
-            } else {
-              console.log(`Local image file deleted successfully 🗑️`);
-            }
-          });
-      
-          // Step 6: Get image URL
-          const seeAsset =  await goFetch(assetAddress)
-          console.log(seeAsset)
-      
-          console.log("Process completed successfully!");
-        } catch (error) {
-          console.error("An error occurred in the main process:", error);
-        }
-    
+    if (transactionSignature) {
+      console.log(`Found transaction with memo: ${transactionSignature}`);
+      await processPostTransaction(description, playerChoice);
+    }
+
   } catch (error) {
-    console.log('Oops!')
+    console.error('An error occurred:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Stack trace:', error.stack);
+    }
+    // Don't send another response if one has already been sent
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'An internal server error occurred' });
+    }
+  }
+});
+
+async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string): Promise<TransactionSignature | null> {
+  const maxChecks = 10;
+  let checkCount = 0;
+
+  console.log(`Searching for memo: "${memo}"`);
+
+  while (checkCount < maxChecks) {
+    console.log(`Check ${checkCount + 1} of ${maxChecks}`);
+    
+    const signatures = await connection.getSignaturesForAddress(userAccount, 
+      { limit: 5 },
+      'confirmed'
+    );
+
+    for (const sigInfo of signatures) {
+      console.log(`Checking signature: ${sigInfo.signature}`);
+      console.log(`Signature memo: "${sigInfo.memo}"`);
+      
+      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
+        console.log("Memo match found!");
+        return sigInfo.signature;
+      } else {
+        console.log("No match");
+      }
+    }
+
+    checkCount++;
+
+    if (checkCount < maxChecks) {
+      console.log("Waiting 5 seconds before next check...");
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   }
 
-});
+  console.log("Maximum checks reached, no matching memo found");
+  return null;
+}
+
+async function processPostTransaction(description: string, playerChoice: string) {
+  try {
+    const choiceConsequence = await consequence(description, playerChoice);
+    console.log(choiceConsequence);
+    const continueStory = `${onceUponATime}\n\n${choiceConsequence}`;
+    console.log(`Story with consequence-> ${continueStory}`)
+
+    console.log("Defining config for the new scene...");
+    const CONFIG = await defineConfig(continueStory, choiceConsequence);
+    console.log("Config defined:", CONFIG);
+
+    console.log("Creating image...");
+    const imagePath = await createImage(CONFIG);
+    console.log("Image created at:", imagePath);
+
+    console.log("Creating URI...");
+    // const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
+    const uri = await createURI(imagePath, CONFIG);
+    console.log("Metadata URI created:", uri);
+
+    console.log("Creating asset...");
+    const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
+    const newAssetAddress = await createAsset(uriConfig);
+    const assetURL = uriConfig.imageURI;
+    console.log("Asset created with address:", newAssetAddress);
+    console.log("Asset URL:", assetURL);
+
+    fs.unlink(imagePath, (err) => {
+      if (err) {
+        console.error('Failed to delete the local image file:', err);
+      } else {
+        console.log(`Local image file deleted successfully 🗑️`);
+      }
+    });
+
+    const seeAsset = await goFetch(newAssetAddress);
+    console.log(seeAsset);
+
+    // Update the global assetAddress with the new asset address
+    assetAddress = newAssetAddress;
+    console.log("Global assetAddress updated to:", assetAddress);
+
+    console.log("Process completed successfully!");
+  } catch (error) {
+    console.error("An error occurred in the post-transaction process:", error);
+    throw error;
+  }
+}
 
 // Initialize port and start dev server
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}/`);
-  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/devnet`)
+  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
 });
 
 export default app;

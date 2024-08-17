@@ -67,7 +67,7 @@ const umi = newUMI
 
                         1. The "story_continues" should be a brief, engaging scene (50-100 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
                         2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
-                        3. Provide three distinct choices for Toly, each reflecting a different approach:
+                        3. Provide three distinct choices for Toly, each reflecting a different approach(6 words MAXIMUM):
                            - "logical_choice": A rational, well-thought-out option.
                            - "prudent_choice": A careful, risk-averse option.
                            - "reckless_choice": A bold, potentially dangerous option.
@@ -122,6 +122,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
+      The protagonist wears a helmet that masks his head, body type could be male or female.
       The image should capture the essence of the scene WITHOUT showing text or specific choices. Style: Watercolor.`;
   
       const response = await oai_client.images.generate({

@@ -1,7 +1,7 @@
 {
   "license": "ISC",
   "scripts": {
-    "dev": "tsx app.ts",
+    "action": "tsx app.ts",
     "core": "tsx core.ts",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
