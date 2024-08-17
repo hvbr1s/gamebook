@@ -4,6 +4,7 @@ import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
 import { keypairIdentity } from '@metaplex-foundation/umi'
 import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
 import { create } from '@metaplex-foundation/mpl-core'
+import { fetchAsset } from '@metaplex-foundation/mpl-core'
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 // import Groq from "groq-sdk";
@@ -11,10 +12,6 @@ import axios from 'axios';
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
 import * as path from 'path';
-import { 
-    Keypair, 
-    PublicKey, 
-  } from '@solana/web3.js';
 
 // Load environment variable
 dotenv.config();
@@ -125,7 +122,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The image should capture the essence of the scene without showing text or specific choices. Style: Watercolor.`;
+      The image should capture the essence of the scene WITHOUT showing text or specific choices. Style: Watercolor.`;
   
       const response = await oai_client.images.generate({
         model: "dall-e-3",
@@ -213,59 +210,87 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
 const assetSigner = generateSigner(umi)
 
 async function createAsset(CONFIG: UriConfig): Promise<string> {
-    try {
-      // Generate a new signer for the asset
-      const assetSigner = generateSigner(umi);
-  
-      // Create the asset
-      const result = await create(umi, {
-        asset: assetSigner,
-        name: CONFIG.imgName,
-        uri: CONFIG.imageURI,
-      }).sendAndConfirm(umi);
-  
-      console.log(`Asset created with signature: ${result.signature}`);
-      console.log(`Asset address: ${assetSigner.publicKey}`);
-  
-      return assetSigner.publicKey.toString();
-    } catch (error) {
-      console.error("Error in createAsset:", error);
-      throw error;
-    }
-  }
+  try {
+    // Generate a new signer for the asset
+    const assetSigner = generateSigner(umi);
 
-  async function main() {
-    try {
-      // Initial story setup
-      const initialStory = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
-  
-      // Step 1: Define the config for the new scene
-      console.log("Defining config for the new scene...");
-      const CONFIG = await defineConfig(initialStory);
-      console.log("Config defined:", CONFIG);
-  
-      // Step 2: Create the image
-      console.log("Creating image...");
-      const imagePath = await createImage(CONFIG);
-      console.log("Image created at:", imagePath);
-  
-      // Step 3: Create URI (upload image and metadata)
-      console.log("Creating URI...");
-      const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-      const uri = await createURI(imagePath, CONFIG);
-      console.log("Metadata URI created:", uri);
-  
-      // Step 4: Create the asset (mint the NFT)
-      console.log("Creating asset...");
-      const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-      const assetAddress = await createAsset(uriConfig);
-      console.log("Asset created with address:", assetAddress);
-  
-      console.log("Process completed successfully!");
-    } catch (error) {
-      console.error("An error occurred in the main process:", error);
-    }
+    // Create the asset
+    const result = await create(umi, {
+      asset: assetSigner,
+      name: CONFIG.imgName,
+      uri: CONFIG.imageURI,
+    }).sendAndConfirm(umi);
+
+    console.log(`Asset created with signature: ${result.signature}`);
+    console.log(`Asset address: ${assetSigner.publicKey}`);
+
+    return assetSigner.publicKey.toString();
+  } catch (error) {
+    console.error("Error in createAsset:", error);
+    throw error;
   }
-  
+}
+
+async function goFetch(assetAddress) {
+  try {
+    // Fetch the asset using the provided UMI instance
+    const asset = await fetchAsset(umi, assetAddress, {
+      skipDerivePlugins: false,
+    });
+
+    // Get the asset's URI
+    const assetLocation = asset.uri;
+
+    // Fetch the metadata from the asset's URI
+    const response = await axios.get(assetLocation);
+    
+    // Extract the imageURI from the metadata
+    const foundIt = response.data.imageURI;
+
+    return foundIt;
+  } catch (error) {
+    console.error('Error in goFetch:', error);
+    throw error;
+  }
+}
+
+async function main() {
+  try {
+    // Initial story setup
+    const initialStory = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
+
+    // Step 1: Define the config for the new scene
+    console.log("Defining config for the new scene...");
+    const CONFIG = await defineConfig(initialStory);
+    console.log("Config defined:", CONFIG);
+
+    // Step 2: Create the image
+    console.log("Creating image...");
+    const imagePath = await createImage(CONFIG);
+    console.log("Image created at:", imagePath);
+
+    // Step 3: Create URI (upload image and metadata)
+    console.log("Creating URI...");
+    const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
+    const uri = await createURI(imagePath, CONFIG);
+    console.log("Metadata URI created:", uri);
+
+    // Step 4: Create the asset (mint the NFT)
+    console.log("Creating asset...");
+    const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
+    const assetAddress = await createAsset(uriConfig);
+    const assetURL = uriConfig.imageURI
+    console.log("Asset created with address:", assetAddress);
+    console.log("Asset URL:", assetURL)
+
+    const seeAsset =  await goFetch(assetAddress)
+    console.log(seeAsset)
+
+    console.log("Process completed successfully!");
+  } catch (error) {
+    console.error("An error occurred in the main process:", error);
+  }
+}
+ 
   // Run the main function
   main().then(() => console.log("Main function executed")).catch(console.error);
