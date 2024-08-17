@@ -7,3 +7,5 @@ test-ledger
 .yarn
 **/.env
 /app/.env
+secrets
+.env
