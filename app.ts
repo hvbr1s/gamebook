@@ -390,141 +390,132 @@ res.header(ACTIONS_CORS_HEADERS).status(200).end();
 
 app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
+  try {
+    // Fetch the asset using the provided UMI instance
+    if (!assetAddress) {
+      throw new Error('Asset address is not defined');
+    }
+    const asset = await fetchAsset(umi, assetAddress);
+    const assetUri = asset.uri;
+    const response = await axios.get(assetUri);
+    const metadata = response.data;
+    const { description } = metadata;
+    console.log(description);
 
-  // Fetch the asset using the provided UMI instance
-  const asset = await fetchAsset(umi, assetAddress);
-  // Get the asset's URI
-  const assetUri = asset.uri;
-  // Fetch the metadata from the asset's URI
-  const response = await axios.get(assetUri);
-  const metadata = response.data;
-  // Extract the required information from the metadata
-  const { description } = metadata;
-  console.log(description)
+    const playerChoice = typeof req.query.choice === 'string' 
+      ? decodeURIComponent(req.query.choice) 
+      : '';
+    console.log(playerChoice);
+    
+    let user_account: PublicKey;
+    try {
+      const body: ActionPostRequest = req.body;
+      user_account = new PublicKey(body.account);
+      console.log(user_account);
+    } catch (error) {
+      console.error('Invalid account:', error);
+      return res.status(400).json({ error: 'Invalid account' });
+    }
 
-  const playerChoice = typeof req.query.choice === 'string' 
-    ? decodeURIComponent(req.query.choice) 
-    : '';
-  console.log(playerChoice);
-  
-  let user_account: PublicKey
+    const connection = await createNewConnection(QUICKNODE_RPC);
+    const transaction = new Transaction();
 
-      try {
-        const body: ActionPostRequest = req.body;
-        user_account = new PublicKey(body.account)
-        console.log(user_account)
-      } catch (error) {
-        console.log(error)
-        return res.status(400).json({ error: 'Oops, invalid account!' });
-      }
+    const { blockhash } = await connection.getLatestBlockhash();
+    const mintingFee = await getFeeInLamports(connection);
+    const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
+    console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
 
-      const connection = await createNewConnection(QUICKNODE_RPC)
-      const transaction = new Transaction();
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: user_account,
+        toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+        lamports: mintingFee,
+      })
+    );
 
-      // Get the latest blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
+    transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+    transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10_000 }));
 
-      // Get fee price
-      const mintingFee =  await getFeeInLamports(connection);
-      const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
-      console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`)
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = user_account;
 
-      // Adding payment
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: user_account,
-          toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
-          lamports: mintingFee,
-        })
-      );
-
-      // Set computational resources for transaction
-      transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }))
-      transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10_000 }))
-
-      // Set transaction's blockchash and fee payer
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = user_account;
-
-      const payload: ActionPostResponse = await createPostResponse({
-        fields:{
+    const payload: ActionPostResponse = await createPostResponse({
+      fields: {
         transaction: transaction,
         message: "The adventure continues!",
-        },
-      });
+      },
+    });
 
-      res.status(200).json(payload);
+    res.status(200).json(payload);
 
-      // New code to check for transaction finalization
-      try {
-        const connection = await createNewConnection(QUICKNODE_RPC);
-        const signature = await connection.sendRawTransaction(transaction.serialize());
-        
-        console.log('Transaction sent. Signature:', signature);
-    
-        // Wait for transaction confirmation
-        const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-        
-        if (confirmation.value.err) {
-          console.error('Transaction failed:', confirmation.value.err);
-          return; // Exit the function if transaction failed
-        }
-    
-        console.log('Transaction confirmed. Proceeding with the next steps...');
-    
-        // Proceed with the next steps (choiceConsequences, etc.)
-        const choiceConsequence = await consequence(description, playerChoice);
-        console.log(choiceConsequence);
-        const continueStory = onceUponATime + choiceConsequence;
-    
-        try {
-          // Step 1: Define the config for the new scene
-          console.log("Defining config for the new scene...");
-          const CONFIG = await defineConfig(continueStory);
-          console.log("Config defined:", CONFIG);
-  
-          // Step 2: Create the image
-          console.log("Creating image...");
-          const imagePath = await createImage(CONFIG);
-          console.log("Image created at:", imagePath);
-      
-          // Step 3: Create URI (upload image and metadata)
-          console.log("Creating URI...");
-          const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-          const uri = await createURI(imagePath, CONFIG);
-          console.log("Metadata URI created:", uri);
-      
-          // Step 4: Create the asset (mint the NFT)
-          console.log("Creating asset...");
-          const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-          assetAddress = await createAsset(uriConfig);
-          const assetURL = uriConfig.imageURI
-          console.log("Asset created with address:", assetAddress);
-          console.log("Asset URL:", assetURL)
-      
-          // Step 5: Delete the local asset image
-          fs.unlink(imagePath, (err) => {
-            if (err) {
-              console.error('Failed to delete the local image file:', err);
-            } else {
-              console.log(`Local image file deleted successfully 🗑️`);
-            }
-          });
-      
-          // Step 6: Get image URL
-          const seeAsset =  await goFetch(assetAddress)
-          console.log(seeAsset)
-      
-          console.log("Process completed successfully!");
-        } catch (error) {
-          console.error("An error occurred in the main process:", error);
-        }
-    
+    const signature = await connection.sendRawTransaction(transaction.serialize());
+    console.log('Transaction sent. Signature:', signature);
+
+    const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    }
+
+    console.log('Transaction confirmed. Proceeding with the next steps...');
+
+    await processPostTransaction(description, playerChoice);
+
   } catch (error) {
-    console.log('Oooooops!')
+    console.error('An error occurred:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Stack trace:', error.stack);
+    }
+    // Don't send another response if one has already been sent
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'An internal server error occurred' });
+    }
   }
-
 });
+
+async function processPostTransaction(description: string, playerChoice: string) {
+  try {
+    const choiceConsequence = await consequence(description, playerChoice);
+    console.log(choiceConsequence);
+    const continueStory = onceUponATime + choiceConsequence;
+
+    console.log("Defining config for the new scene...");
+    const CONFIG = await defineConfig(continueStory);
+    console.log("Config defined:", CONFIG);
+
+    console.log("Creating image...");
+    const imagePath = await createImage(CONFIG);
+    console.log("Image created at:", imagePath);
+
+    console.log("Creating URI...");
+    const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
+    const uri = await createURI(imagePath, CONFIG);
+    console.log("Metadata URI created:", uri);
+
+    console.log("Creating asset...");
+    const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
+    const newAssetAddress = await createAsset(uriConfig);
+    const assetURL = uriConfig.imageURI;
+    console.log("Asset created with address:", newAssetAddress);
+    console.log("Asset URL:", assetURL);
+
+    fs.unlink(imagePath, (err) => {
+      if (err) {
+        console.error('Failed to delete the local image file:', err);
+      } else {
+        console.log(`Local image file deleted successfully 🗑️`);
+      }
+    });
+
+    const seeAsset = await goFetch(newAssetAddress);
+    console.log(seeAsset);
+
+    console.log("Process completed successfully!");
+  } catch (error) {
+    console.error("An error occurred in the post-transaction process:", error);
+    throw error; // Re-throw the error to be caught by the main try-catch block
+  }
+}
 
 // Initialize port and start dev server
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
