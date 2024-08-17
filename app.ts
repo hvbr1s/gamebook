@@ -24,13 +24,17 @@ import {
   PublicKey, 
   SystemProgram,
   Transaction, 
+  TransactionInstruction,
+  TransactionSignature,
 } from '@solana/web3.js';
+import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { mplCore } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
+import { error } from 'console';
 
 /// Load environment variable
 dotenv.config();
@@ -357,8 +361,8 @@ app.get('/get_action', async (req, res) => {
 
     const payload: ActionGetResponse = {
       icon: new URL(metadata.imageURI).toString(),
-      label: "Continue Journey",
-      title: "Toly's Adventure",
+      label: "Continue Toly's Journey",
+      title: "Toly's Adventure⚔️",
       description: description,
       links: {
         actions: [
@@ -433,9 +437,19 @@ app.post('/post_action', async (req: Request, res: Response) => {
         lamports: mintingFee,
       })
     );
+    const memo = (Math.floor(Math.random() * 100000)).toString();
+    // Adding memo
+    transaction.add(
+      new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memo, 'utf-8'),
+      })
+    );
 
-    transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
-    transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10_000 }));
+    // Set computational resources for transaction
+    transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 20_000 }))
+    transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100 }))
 
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = user_account;
@@ -448,18 +462,12 @@ app.post('/post_action', async (req: Request, res: Response) => {
     });
 
     res.status(200).json(payload);
+    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
-    // const signature = await connection.sendRawTransaction(transaction.serialize());
-    // console.log('Transaction sent. Signature:', signature);
-
-    // const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-    // if (confirmation.value.err) {
-    //   throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-    // }
-
-    console.log('Transaction confirmed. Proceeding with the next steps...');
-
-    await processPostTransaction(description, playerChoice);
+    if (transactionSignature) {
+      console.log(`Found transaction with memo: ${transactionSignature}`);
+      await processPostTransaction(description, playerChoice);
+    }
 
   } catch (error) {
     console.error('An error occurred:', error);
@@ -473,6 +481,44 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
   }
 });
+
+async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string): Promise<TransactionSignature | null> {
+  const maxChecks = 10;
+  let checkCount = 0;
+
+  console.log(`Searching for memo: "${memo}"`);
+
+  while (checkCount < maxChecks) {
+    console.log(`Check ${checkCount + 1} of ${maxChecks}`);
+    
+    const signatures = await connection.getSignaturesForAddress(userAccount, 
+      { limit: 5 },
+      'confirmed'
+    );
+
+    for (const sigInfo of signatures) {
+      console.log(`Checking signature: ${sigInfo.signature}`);
+      console.log(`Signature memo: "${sigInfo.memo}"`);
+      
+      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
+        console.log("Memo match found!");
+        return sigInfo.signature;
+      } else {
+        console.log("No match");
+      }
+    }
+
+    checkCount++;
+
+    if (checkCount < maxChecks) {
+      console.log("Waiting 5 seconds before next check...");
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  }
+
+  console.log("Maximum checks reached, no matching memo found");
+  return null;
+}
 
 async function processPostTransaction(description: string, playerChoice: string) {
   try {
