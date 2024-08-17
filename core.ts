@@ -1,6 +1,7 @@
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
 import { mplCore } from '@metaplex-foundation/mpl-core'
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
+import { keypairIdentity } from '@metaplex-foundation/umi'
 import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
 import { create } from '@metaplex-foundation/mpl-core'
 import dotenv from 'dotenv';
@@ -24,27 +25,26 @@ const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pr
 const WALLET = getKeypairFromEnvironment();
 
 // Initialize UMI instance
-const umi = createUmi(QUICKNODE_RPC).use(mplCore())
-umi.use(irysUploader())
-
-
+const umi = createUmi(QUICKNODE_RPC)
+  .use(mplCore())
+  .use(irysUploader())
+  .use(keypairIdentity(WALLET));
 
 // Function to convert private key string to Uint8Array
 function getKeypairFromEnvironment(): Keypair {
-    const privateKeyString = process.env.MINTER_PRIVATE_KEY;
-    if (!privateKeyString) {
-      throw new Error('Minter key is not set in environment variables');
-    }
-    // Convert the private key string to an array of numbers
-    const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
-    // Create a Uint8Array from the array of numbers
-    const privateKeyUint8Array = new Uint8Array(privateKeyArray);
-    // Create and return the Keypair
-    return Keypair.fromSecretKey(privateKeyUint8Array);
+  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
+  if (!privateKeyString) {
+    throw new Error('Minter key is not set in environment variables');
+  }
+  // Convert the private key string to an array of numbers
+  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
+  // Create a Uint8Array from the array of numbers
+  const privateKeyUint8Array = new Uint8Array(privateKeyArray);
+  // Create and return the Keypair
+  return Keypair.fromSecretKey(privateKeyUint8Array);
 }
-  
-  
-  ///// AI LOGIC
+   
+///// AI LOGIC
   const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 //   const groq_client = new Groq({ apiKey: process.env.GROQ_API_KEY });
   const gpt_llm = "gpt-4o-2024-08-06"
