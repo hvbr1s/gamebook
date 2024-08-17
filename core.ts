@@ -4,6 +4,7 @@ import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
 import { keypairIdentity } from '@metaplex-foundation/umi'
 import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
 import { create } from '@metaplex-foundation/mpl-core'
+import { fetchAsset } from '@metaplex-foundation/mpl-core'
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 // import Groq from "groq-sdk";
@@ -11,10 +12,6 @@ import axios from 'axios';
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
 import * as path from 'path';
-import { 
-    Keypair, 
-    PublicKey, 
-  } from '@solana/web3.js';
 
 // Load environment variable
 dotenv.config();
@@ -125,7 +122,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The image should capture the essence of the scene without showing text or specific choices. Style: Watercolor.`;
+      The image should capture the essence of the scene WITHOUT showing text or specific choices. Style: Watercolor.`;
   
       const response = await oai_client.images.generate({
         model: "dall-e-3",
@@ -234,6 +231,13 @@ async function createAsset(CONFIG: UriConfig): Promise<string> {
     }
   }
 
+async function goFetch(assetAddress){
+  const asset = await fetchAsset(umi, assetAddress, {
+    skipDerivePlugins: false,
+  })
+  return asset
+}
+
   async function main() {
     try {
       // Initial story setup
@@ -259,13 +263,18 @@ async function createAsset(CONFIG: UriConfig): Promise<string> {
       console.log("Creating asset...");
       const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
       const assetAddress = await createAsset(uriConfig);
+      const assetURL = uriConfig.imageURI
       console.log("Asset created with address:", assetAddress);
+      console.log("Asset URL:", assetURL)
+
+      const seeAsset =  await goFetch(assetAddress)
+      console.log(seeAsset)
   
       console.log("Process completed successfully!");
     } catch (error) {
       console.error("An error occurred in the main process:", error);
     }
   }
-  
+ 
   // Run the main function
   main().then(() => console.log("Main function executed")).catch(console.error);
