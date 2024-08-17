@@ -34,7 +34,6 @@ import { mplCore } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
-import { error } from 'console';
 
 /// Load environment variable
 dotenv.config();
@@ -197,8 +196,10 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The protagonist wears a helmet that masks his head, body type could be male or female.
-      The image should capture the essence of the scene WITHOUT showing text or specific choices. Style: Watercolor.`;
+      The protagonist wears a red metallic helmet that masks his head, body type could be male or female.
+      The image should capture the essence of the scene without showing text or specific choices. 
+      IMPORTANT: DO NOT GENERATE TEXT.
+      Style: Watercolor.`;
   
       const response = await oai_client.images.generate({
         model: "dall-e-3",
@@ -331,7 +332,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "DPYfKcTo7WMyELs3HUPzA4DNe1QFXMJxANn29YAmkgee";
+let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C";
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -362,7 +363,7 @@ app.get('/get_action', async (req, res) => {
     const payload: ActionGetResponse = {
       icon: new URL(metadata.imageURI).toString(),
       label: "Continue Toly's Journey",
-      title: "Toly's Adventure⚔️",
+      title: "Toly's Infinite Adventure⚔️",
       description: description,
       links: {
         actions: [
@@ -457,7 +458,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
         transaction: transaction,
-        message: "The adventure continues!",
+        message: "The adventure continues! Refresh this page in a minute to see what happens next!",
       },
     });
 
@@ -565,7 +566,7 @@ async function processPostTransaction(description: string, playerChoice: string)
     console.log("Process completed successfully!");
   } catch (error) {
     console.error("An error occurred in the post-transaction process:", error);
-    throw error; // Re-throw the error to be caught by the main try-catch block
+    throw error;
   }
 }
 
