@@ -449,7 +449,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       const payload: ActionPostResponse = await createPostResponse({
         fields:{
         transaction: transaction,
-        message: "Your NFT is on the way, check your wallet in a few minutes!",
+        message: "The adventure continues!",
         },
       });
 
@@ -521,7 +521,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
         }
     
   } catch (error) {
-    console.log('Oops!')
+    console.log('Oooooops!')
   }
 
 });
