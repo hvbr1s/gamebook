@@ -166,7 +166,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
 }
   
 
-async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> {
+async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<{ imageUri: string, metadataUri: string }> {
   try {
     // Read the image file
     const imageBuffer = await promise.readFile(imagePath);
@@ -200,25 +200,22 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
       throw new Error("Failed to upload metadata");
     }
 
-    return metadataUri;
+    return { imageUri, metadataUri }
+
   } catch (error) {
     console.error("Error in createURI:", error);
     throw error;
   }
 }
 
-const assetSigner = generateSigner(umi)
-
-async function createAsset(CONFIG: UriConfig): Promise<string> {
+async function createAsset(CONFIG: UriConfig, metadataUri: string): Promise<string> {
   try {
-    // Generate a new signer for the asset
     const assetSigner = generateSigner(umi);
 
-    // Create the asset
     const result = await create(umi, {
       asset: assetSigner,
       name: CONFIG.imgName,
-      uri: CONFIG.imageURI,
+      uri: metadataUri, 
     }).sendAndConfirm(umi);
 
     console.log(`Asset created with signature: ${result.signature}`);
@@ -254,10 +251,14 @@ async function goFetch(assetAddress) {
   }
 }
 
+// Declaring global variables
+let assetAddress: string //= "2A2LMNeBucYBHteoa9GiFHRggRhJBBLzaetzpSHvTCT3";
+let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning."
+
 async function main() {
   try {
     // Initial story setup
-    const initialStory = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
+    const initialStory = onceUponATime;
 
     // Step 1: Define the config for the new scene
     console.log("Defining config for the new scene...");
@@ -272,17 +273,27 @@ async function main() {
     // Step 3: Create URI (upload image and metadata)
     console.log("Creating URI...");
     const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-    const uri = await createURI(imagePath, CONFIG);
-    console.log("Metadata URI created:", uri);
+    const { imageUri, metadataUri } = await createURI(imagePath, CONFIG);
+    console.log("Metadata URI created:", imageUri);
 
     // Step 4: Create the asset (mint the NFT)
     console.log("Creating asset...");
-    const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-    const assetAddress = await createAsset(uriConfig);
+    const uriConfig: UriConfig = { ...CONFIG, imageURI: imageUri };
+    assetAddress = await createAsset(uriConfig, metadataUri);
     const assetURL = uriConfig.imageURI
     console.log("Asset created with address:", assetAddress);
     console.log("Asset URL:", assetURL)
 
+    // Step 5: Delete the local asset image
+    fs.unlink(imagePath, (err) => {
+      if (err) {
+        console.error('Failed to delete the local image file:', err);
+      } else {
+        console.log(`Local image file deleted successfully 🗑️`);
+      }
+    });
+
+    // Step 6: Get image URL
     const seeAsset =  await goFetch(assetAddress)
     console.log(seeAsset)
 
