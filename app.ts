@@ -107,7 +107,7 @@ async function consequence(description,playerChoice): Promise<string>{
                 '${description}'
                 Toly decided the following:
                 '${playerChoice}'
-                Please write the consequences of Toly's action on the story.
+                Please write ONE SENTENCE about the direct consequences of Toly's action on the story.
             `
         }
     ],
@@ -120,7 +120,7 @@ const storyContinues = generateStory.choices[0].message.content;
 return storyContinues
 }
 
-async function defineConfig(storySoFar: string): Promise<NFTConfig> {
+async function defineConfig(storySoFar: string, choiceConsequence: string): Promise<NFTConfig> {
     try {
         const nftAttributes = await oai_client.chat.completions.create({
             messages: [
@@ -138,7 +138,7 @@ async function defineConfig(storySoFar: string): Promise<NFTConfig> {
 
                         1. The "story_continues" should be a brief, engaging scene (50-100 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
                         2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
-                        3. Provide three distinct choices for Toly, each reflecting a different approach:
+                        3. Provide three distinct choices for Toly, each reflecting a different approach (6 words maximum):
                            - "logical_choice": A rational, well-thought-out option.
                            - "prudent_choice": A careful, risk-averse option.
                            - "reckless_choice": A bold, potentially dangerous option.
@@ -174,7 +174,7 @@ async function defineConfig(storySoFar: string): Promise<NFTConfig> {
             imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
-            description: llmResponse.story_continues,
+            description: `${choiceConsequence} ${llmResponse.story_continues}`,
             attributes: [
                 {trait_type: 'Logical Choice', value: llmResponse.logical_choice},
                 {trait_type: 'Prudent Choice', value: llmResponse.prudent_choice},
@@ -193,6 +193,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
+      The protagonist wears a helmet that masks his head, body type could be male or female.
       The image should capture the essence of the scene WITHOUT showing text or specific choices. Style: Watercolor.`;
   
       const response = await oai_client.images.generate({
@@ -326,7 +327,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "2A2LMNeBucYBHteoa9GiFHRggRhJBBLzaetzpSHvTCT3";
+let assetAddress: string = "DPYfKcTo7WMyELs3HUPzA4DNe1QFXMJxANn29YAmkgee";
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -448,13 +449,13 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     res.status(200).json(payload);
 
-    const signature = await connection.sendRawTransaction(transaction.serialize());
-    console.log('Transaction sent. Signature:', signature);
+    // const signature = await connection.sendRawTransaction(transaction.serialize());
+    // console.log('Transaction sent. Signature:', signature);
 
-    const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-    if (confirmation.value.err) {
-      throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-    }
+    // const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+    // if (confirmation.value.err) {
+    //   throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    // }
 
     console.log('Transaction confirmed. Proceeding with the next steps...');
 
@@ -477,10 +478,11 @@ async function processPostTransaction(description: string, playerChoice: string)
   try {
     const choiceConsequence = await consequence(description, playerChoice);
     console.log(choiceConsequence);
-    const continueStory = onceUponATime + choiceConsequence;
+    const continueStory = `${onceUponATime}\n\n${choiceConsequence}`;
+    console.log(`Story with consequence-> ${continueStory}`)
 
     console.log("Defining config for the new scene...");
-    const CONFIG = await defineConfig(continueStory);
+    const CONFIG = await defineConfig(continueStory, choiceConsequence);
     console.log("Config defined:", CONFIG);
 
     console.log("Creating image...");
@@ -488,7 +490,7 @@ async function processPostTransaction(description: string, playerChoice: string)
     console.log("Image created at:", imagePath);
 
     console.log("Creating URI...");
-    const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
+    // const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
     const uri = await createURI(imagePath, CONFIG);
     console.log("Metadata URI created:", uri);
 
@@ -510,6 +512,10 @@ async function processPostTransaction(description: string, playerChoice: string)
     const seeAsset = await goFetch(newAssetAddress);
     console.log(seeAsset);
 
+    // Update the global assetAddress with the new asset address
+    assetAddress = newAssetAddress;
+    console.log("Global assetAddress updated to:", assetAddress);
+
     console.log("Process completed successfully!");
   } catch (error) {
     console.error("An error occurred in the post-transaction process:", error);
@@ -521,7 +527,7 @@ async function processPostTransaction(description: string, playerChoice: string)
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}/`);
-  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/devnet`)
+  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
 });
 
 export default app;
