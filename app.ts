@@ -1,16 +1,14 @@
-import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
-import { mplCore } from '@metaplex-foundation/mpl-core'
-import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
-import { keypairIdentity } from '@metaplex-foundation/umi'
-import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
-import { create } from '@metaplex-foundation/mpl-core'
-import { fetchAsset } from '@metaplex-foundation/mpl-core'
-import dotenv from 'dotenv';
-import OpenAI from 'openai';
-import axios from 'axios';
+// Node.js built-in modules
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
 import * as path from 'path';
+// Third-party modules
+import dotenv from 'dotenv';
+import OpenAI from 'openai';
+import axios from 'axios';
+import fetch from 'node-fetch';
+import cors from 'cors';
+import express, { Request, Response } from 'express';
 // Solana-related imports
 import { 
   ACTIONS_CORS_HEADERS, 
@@ -19,9 +17,20 @@ import {
   ActionPostResponse, 
   createPostResponse 
 } from '@solana/actions';
-// Third-party modules
-import cors from 'cors';
-import express, { Request, Response } from 'express';
+import { 
+  Connection, 
+  ComputeBudgetProgram,
+  LAMPORTS_PER_SOL,
+  PublicKey, 
+  SystemProgram,
+  Transaction, 
+} from '@solana/web3.js';
+// Metaplex-related imports
+import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
+import { mplCore } from '@metaplex-foundation/mpl-core';
+import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
+import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
+import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 
 /// Load environment variable
 dotenv.config();
@@ -44,10 +53,33 @@ const umi = newUMI
   .use(irysUploader())
   .use(keypairIdentity(keypair));
 
+async function createNewConnection(rpcUrl: string){
+  const connection = await new Connection(rpcUrl)
+  console.log(`Connection to Solana established`)
+  return connection;
+}
+
+// Fee setting function
+async function getFeeInLamports(connection: Connection): Promise<number> {
+  // 1. Get the current SOL/USD price
+  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+  const data = await response.json();
+  const solPrice = data.solana.usd;
+
+  // 2. Calculate SOL equivalent of 5 USD
+  const solAmount = 5 / solPrice;
+
+  // 3. Convert SOL to lamports
+  const lamports = solAmount * LAMPORTS_PER_SOL;
+
+  // Round to the nearest whole number of lamports
+  return Math.round(lamports);
+}
+
 ///// AI LOGIC
-  const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
-//   const groq_client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  const gpt_llm = "gpt-4o-2024-08-06"
+const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
+
+const gpt_llm = "gpt-4o-2024-08-06"
 
   interface NFTConfig {
     uploadPath: string;
@@ -58,7 +90,37 @@ const umi = newUMI
     attributes: Array<{trait_type: string, value: string}>;
 }
 
-  async function defineConfig(storySoFar: string): Promise<NFTConfig> {
+async function consequence(description,playerChoice): Promise<string>{
+
+  const generateStory = await oai_client.chat.completions.create({
+    messages: [
+        {
+            role: "system",
+            content: `You are an expert storyteller and narrator for an interactive medieval fantasy gamebook. 
+            Your task is to continue the story of Toly, a knight of Solana, in a compelling and engaging manner. 
+            Craft your narratives to be vivid yet concise.`
+        },
+        {
+            role: "user",
+            content: `
+                Based on the following story so far:
+                '${description}'
+                Toly decided the following:
+                '${playerChoice}'
+                Please write the consequences of Toly's action on the story.
+            `
+        }
+    ],
+    model: gpt_llm,
+    temperature: 0.7,
+});
+
+const storyContinues = generateStory.choices[0].message.content;
+
+return storyContinues
+}
+
+async function defineConfig(storySoFar: string): Promise<NFTConfig> {
     try {
         const nftAttributes = await oai_client.chat.completions.create({
             messages: [
@@ -265,44 +327,7 @@ async function goFetch(assetAddress) {
 
 // Declaring global assetAddress
 let assetAddress: string = "2A2LMNeBucYBHteoa9GiFHRggRhJBBLzaetzpSHvTCT3";
-
-async function main() {
-  try {
-    // Initial story setup
-    const initialStory = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
-
-    // Step 1: Define the config for the new scene
-    console.log("Defining config for the new scene...");
-    const CONFIG = await defineConfig(initialStory);
-    console.log("Config defined:", CONFIG);
-
-    // Step 2: Create the image
-    console.log("Creating image...");
-    const imagePath = await createImage(CONFIG);
-    console.log("Image created at:", imagePath);
-
-    // Step 3: Create URI (upload image and metadata)
-    console.log("Creating URI...");
-    const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-    const uri = await createURI(imagePath, CONFIG);
-    console.log("Metadata URI created:", uri);
-
-    // Step 4: Create the asset (mint the NFT)
-    console.log("Creating asset...");
-    const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-    assetAddress = await createAsset(uriConfig);
-    const assetURL = uriConfig.imageURI
-    console.log("Asset created with address:", assetAddress);
-    console.log("Asset URL:", assetURL)
-
-    const seeAsset =  await goFetch(assetAddress)
-    console.log(seeAsset)
-
-    console.log("Process completed successfully!");
-  } catch (error) {
-    console.error("An error occurred in the main process:", error);
-  }
-}
+let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
 // Create a new express application instance
@@ -361,6 +386,144 @@ app.get('/get_action', async (req, res) => {
 
 app.options('/post_action', (req: Request, res: Response) => {
 res.header(ACTIONS_CORS_HEADERS).status(200).end();
+});
+
+app.use(express.json());
+app.post('/post_action', async (req: Request, res: Response) => {
+
+  // Fetch the asset using the provided UMI instance
+  const asset = await fetchAsset(umi, assetAddress);
+  // Get the asset's URI
+  const assetUri = asset.uri;
+  // Fetch the metadata from the asset's URI
+  const response = await axios.get(assetUri);
+  const metadata = response.data;
+  // Extract the required information from the metadata
+  const { description } = metadata;
+  console.log(description)
+
+  const playerChoice = typeof req.query.choice === 'string' 
+    ? decodeURIComponent(req.query.choice) 
+    : '';
+  console.log(playerChoice);
+  
+  let user_account: PublicKey
+
+      try {
+        const body: ActionPostRequest = req.body;
+        user_account = new PublicKey(body.account)
+        console.log(user_account)
+      } catch (error) {
+        console.log(error)
+        return res.status(400).json({ error: 'Oops, invalid account!' });
+      }
+
+      const connection = await createNewConnection(QUICKNODE_RPC)
+      const transaction = new Transaction();
+
+      // Get the latest blockhash
+      const { blockhash } = await connection.getLatestBlockhash();
+
+      // Get fee price
+      const mintingFee =  await getFeeInLamports(connection);
+      const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
+      console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`)
+
+      // Adding payment
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: user_account,
+          toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+          lamports: mintingFee,
+        })
+      );
+
+      // Set computational resources for transaction
+      transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }))
+      transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10_000 }))
+
+      // Set transaction's blockchash and fee payer
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = user_account;
+
+      const payload: ActionPostResponse = await createPostResponse({
+        fields:{
+        transaction: transaction,
+        message: "Your NFT is on the way, check your wallet in a few minutes!",
+        },
+      });
+
+      res.status(200).json(payload);
+
+      // New code to check for transaction finalization
+      try {
+        const connection = await createNewConnection(QUICKNODE_RPC);
+        const signature = await connection.sendRawTransaction(transaction.serialize());
+        
+        console.log('Transaction sent. Signature:', signature);
+    
+        // Wait for transaction confirmation
+        const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+        
+        if (confirmation.value.err) {
+          console.error('Transaction failed:', confirmation.value.err);
+          return; // Exit the function if transaction failed
+        }
+    
+        console.log('Transaction confirmed. Proceeding with the next steps...');
+    
+        // Proceed with the next steps (choiceConsequences, etc.)
+        const choiceConsequence = await consequence(description, playerChoice);
+        console.log(choiceConsequence);
+        const continueStory = onceUponATime + choiceConsequence;
+    
+        try {
+          // Step 1: Define the config for the new scene
+          console.log("Defining config for the new scene...");
+          const CONFIG = await defineConfig(continueStory);
+          console.log("Config defined:", CONFIG);
+  
+          // Step 2: Create the image
+          console.log("Creating image...");
+          const imagePath = await createImage(CONFIG);
+          console.log("Image created at:", imagePath);
+      
+          // Step 3: Create URI (upload image and metadata)
+          console.log("Creating URI...");
+          const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
+          const uri = await createURI(imagePath, CONFIG);
+          console.log("Metadata URI created:", uri);
+      
+          // Step 4: Create the asset (mint the NFT)
+          console.log("Creating asset...");
+          const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
+          assetAddress = await createAsset(uriConfig);
+          const assetURL = uriConfig.imageURI
+          console.log("Asset created with address:", assetAddress);
+          console.log("Asset URL:", assetURL)
+      
+          // Step 5: Delete the local asset image
+          fs.unlink(imagePath, (err) => {
+            if (err) {
+              console.error('Failed to delete the local image file:', err);
+            } else {
+              console.log(`Local image file deleted successfully 🗑️`);
+            }
+          });
+      
+          // Step 6: Get image URL
+          const seeAsset =  await goFetch(assetAddress)
+          console.log(seeAsset)
+      
+          console.log("Process completed successfully!");
+        } catch (error) {
+          console.error("An error occurred in the main process:", error);
+        }
+    
+  } catch (error) {
+    console.log('Oops!')
+  }
+
 });
 
 // Initialize port and start dev server
