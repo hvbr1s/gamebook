@@ -231,12 +231,28 @@ async function createAsset(CONFIG: UriConfig): Promise<string> {
     }
   }
 
-async function goFetch(assetAddress){
-  const asset = await fetchAsset(umi, assetAddress, {
-    skipDerivePlugins: false,
-  })
-  return asset
-}
+  async function goFetch(assetAddress) {
+    try {
+      // Fetch the asset using the provided UMI instance
+      const asset = await fetchAsset(umi, assetAddress, {
+        skipDerivePlugins: false,
+      });
+  
+      // Get the asset's URI
+      const assetLocation = asset.uri;
+  
+      // Fetch the metadata from the asset's URI
+      const response = await axios.get(assetLocation);
+      
+      // Extract the imageURI from the metadata
+      const foundIt = response.data.imageURI;
+  
+      return foundIt;
+    } catch (error) {
+      console.error('Error in goFetch:', error);
+      throw error;
+    }
+  }
 
   async function main() {
     try {
