@@ -450,8 +450,9 @@ app.post('/post_action', async (req: Request, res: Response) => {
         lamports: mintingFee,
       })
     );
-    const memo = (Math.floor(Math.random() * 100000)).toString();
+
     // Adding memo
+    const memo = (Math.floor(Math.random() * 100000)).toString();
     transaction.add(
       new TransactionInstruction({
         keys: [],
@@ -476,7 +477,9 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     res.status(200).json(payload);
     
-    processPostTransaction(description, playerChoice, connection, user_account, memo)
+    if (payload){
+      processPostTransaction(description, playerChoice, connection, user_account, memo)
+    }
 
   } catch (error) {
     console.error('An error occurred:', error);
