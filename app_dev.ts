@@ -26,6 +26,7 @@ import {
   Transaction, 
   TransactionInstruction,
   TransactionSignature,
+  Keypair
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 // Metaplex-related imports
@@ -46,8 +47,17 @@ const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pr
 const newUMI = createUmi(QUICKNODE_RPC)
 
 // Load wallet
-const WALLET_PATH = '/home/dan/gamebook/secrets/GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z.json'
-const secretKey = JSON.parse(fs.readFileSync(WALLET_PATH, 'utf-8'))
+function getKeypairFromEnvironment(): Uint8Array {
+  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
+  if (!privateKeyString) {
+    throw new Error('Minter key is not set in environment variables');
+  }
+  // Convert the private key string to an array of numbers
+  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
+  // Return a Uint8Array from the array of numbers
+  return new Uint8Array(privateKeyArray);
+}
+const secretKey = getKeypairFromEnvironment()
 const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
 
 // Initialize UMI instance with wallet
@@ -332,13 +342,15 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "DPYfKcTo7WMyELs3HUPzA4DNe1QFXMJxANn29YAmkgee";
+//let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C"; //rune start
+let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
 // Create a new express application instance
 const app: express.Application = express();
 app.use(cors());
+app.use(express.json());
 
 app.get('/get_action', async (req, res) => {
   try {
@@ -363,7 +375,7 @@ app.get('/get_action', async (req, res) => {
     const payload: ActionGetResponse = {
       icon: new URL(metadata.imageURI).toString(),
       label: "Continue Toly's Journey",
-      title: "Toly's Adventure⚔️",
+      title: "Toly's Infinite Adventure⚔️",
       description: description,
       links: {
         actions: [
@@ -391,10 +403,9 @@ app.get('/get_action', async (req, res) => {
 });
 
 app.options('/post_action', (req: Request, res: Response) => {
-res.header(ACTIONS_CORS_HEADERS).status(200).end();
+  res.header(ACTIONS_CORS_HEADERS).status(200).end();
 });
 
-app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
     // Fetch the asset using the provided UMI instance

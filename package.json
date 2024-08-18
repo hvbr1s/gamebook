@@ -2,7 +2,7 @@
   "license": "ISC",
   "scripts": {
     "action": "tsx app.ts",
-    "core": "tsx core.ts",
+    "init": "tsx initialize_story.ts",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
