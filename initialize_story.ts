@@ -3,7 +3,12 @@ import { mplCore } from '@metaplex-foundation/mpl-core'
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
 import { keypairIdentity } from '@metaplex-foundation/umi'
 import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
-import { create } from '@metaplex-foundation/mpl-core'
+import {
+  createCollection,
+  create,
+  fetchCollection,
+} from '@metaplex-foundation/mpl-core'
+import { fetchAsset } from '@metaplex-foundation/mpl-core'
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 // import Groq from "groq-sdk";
@@ -11,14 +16,6 @@ import axios from 'axios';
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
 import * as path from 'path';
-// Solana-related imports
-import { 
-  ACTIONS_CORS_HEADERS, 
-  ActionGetResponse, 
-  ActionPostRequest, 
-  ActionPostResponse, 
-  createPostResponse 
-} from '@solana/actions';
 
 // Load environment variable
 dotenv.config();
@@ -73,7 +70,7 @@ const umi = newUMI
 
                         1. The "story_continues" should be a brief, engaging scene (50-100 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
                         2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
-                        3. Provide three distinct choices for Toly, each reflecting a different approach:
+                        3. Provide three distinct choices for Toly, each reflecting a different approach(6 words MAXIMUM):
                            - "logical_choice": A rational, well-thought-out option.
                            - "prudent_choice": A careful, risk-averse option.
                            - "reckless_choice": A bold, potentially dangerous option.
@@ -128,8 +125,11 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The image should capture the essence of the scene without showing text or specific choices. Style: Watercolor.`;
-  
+      The protagonist wears a red metallic helmet that masks his head, body type could be male or female.
+      The image should capture the essence of the scene without showing text or specific choices. 
+      IMPORTANT: DO NOT GENERATE TEXT.
+      Style: Watercolor.`;
+      
       const response = await oai_client.images.generate({
         model: "dall-e-3",
         prompt: enhancedPrompt,
@@ -172,7 +172,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
 }
   
 
-async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> {
+async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<{ imageUri: string, metadataUri: string }> {
   try {
     // Read the image file
     const imageBuffer = await promise.readFile(imagePath);
@@ -206,71 +206,108 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
       throw new Error("Failed to upload metadata");
     }
 
-    return metadataUri;
+    return { imageUri, metadataUri }
+
   } catch (error) {
     console.error("Error in createURI:", error);
     throw error;
   }
 }
 
-const assetSigner = generateSigner(umi)
+async function createAsset(CONFIG: UriConfig, metadataUri: string): Promise<string> {
+  try {
+    const assetSigner = generateSigner(umi);
 
-async function createAsset(CONFIG: UriConfig): Promise<string> {
-    try {
-      // Generate a new signer for the asset
-      const assetSigner = generateSigner(umi);
-  
-      // Create the asset
-      const result = await create(umi, {
-        asset: assetSigner,
-        name: CONFIG.imgName,
-        uri: CONFIG.imageURI,
-      }).sendAndConfirm(umi);
-  
-      console.log(`Asset created with signature: ${result.signature}`);
-      console.log(`Asset address: ${assetSigner.publicKey}`);
-  
-      return assetSigner.publicKey.toString();
-    } catch (error) {
-      console.error("Error in createAsset:", error);
-      throw error;
-    }
-  }
+    const result = await create(umi, {
+      asset: assetSigner,
+      name: CONFIG.imgName,
+      uri: metadataUri, 
+    }).sendAndConfirm(umi);
 
-  async function main() {
-    try {
-      // Initial story setup
-      const initialStory = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
-  
-      // Step 1: Define the config for the new scene
-      console.log("Defining config for the new scene...");
-      const CONFIG = await defineConfig(initialStory);
-      console.log("Config defined:", CONFIG);
-  
-      // Step 2: Create the image
-      console.log("Creating image...");
-      const imagePath = await createImage(CONFIG);
-      console.log("Image created at:", imagePath);
-  
-      // Step 3: Create URI (upload image and metadata)
-      console.log("Creating URI...");
-      const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-      const uri = await createURI(imagePath, CONFIG);
-      console.log("Metadata URI created:", uri);
-  
-      // Step 4: Create the asset (mint the NFT)
-      console.log("Creating asset...");
-      const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-      const assetAddress = await createAsset(uriConfig);
-      const assetURL = uriConfig.imageURI
-      console.log("Asset created with address:", assetAddress);
-      console.log("Asset URL:", assetURL)
-  
-      console.log("Process completed successfully!");
-    } catch (error) {
-      console.error("An error occurred in the main process:", error);
-    }
+    console.log(`Asset created with signature: ${result.signature}`);
+    console.log(`Asset address: ${assetSigner.publicKey}`);
+
+    return assetSigner.publicKey.toString();
+  } catch (error) {
+    console.error("Error in createAsset:", error);
+    throw error;
   }
-  
+}
+
+async function goFetch(assetAddress) {
+  try {
+    // Fetch the asset using the provided UMI instance
+    const asset = await fetchAsset(umi, assetAddress, {
+      skipDerivePlugins: false,
+    });
+
+    // Get the asset's URI
+    const assetLocation = asset.uri;
+
+    // Fetch the metadata from the asset's URI
+    const response = await axios.get(assetLocation);
+    
+    // Extract the imageURI from the metadata
+    const foundIt = response.data.imageURI;
+
+    return foundIt;
+  } catch (error) {
+    console.error('Error in goFetch:', error);
+    throw error;
+  }
+}
+
+// Declaring global variables
+let assetAddress: string //= "2A2LMNeBucYBHteoa9GiFHRggRhJBBLzaetzpSHvTCT3";
+let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning."
+
+async function main() {
+  try {
+    // Initial story setup
+    const initialStory = onceUponATime;
+
+    // Step 1: Define the config for the new scene
+    console.log("Defining config for the new scene...");
+    const CONFIG = await defineConfig(initialStory);
+    console.log("Config defined:", CONFIG);
+
+    // Step 2: Create the image
+    console.log("Creating image...");
+    const imagePath = await createImage(CONFIG);
+    console.log("Image created at:", imagePath);
+
+    // Step 3: Create URI (upload image and metadata)
+    console.log("Creating URI...");
+    const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
+    const { imageUri, metadataUri } = await createURI(imagePath, CONFIG);
+    console.log("Metadata URI created:", imageUri);
+
+    // Step 4: Create the asset (mint the NFT)
+    console.log("Creating asset...");
+    const uriConfig: UriConfig = { ...CONFIG, imageURI: imageUri };
+    assetAddress = await createAsset(uriConfig, metadataUri);
+    const assetURL = uriConfig.imageURI
+    console.log("Asset created with address:", assetAddress);
+    console.log("Asset URL:", assetURL)
+
+    // Step 5: Delete the local asset image
+    fs.unlink(imagePath, (err) => {
+      if (err) {
+        console.error('Failed to delete the local image file:', err);
+      } else {
+        console.log(`Local image file deleted successfully 🗑️`);
+      }
+    });
+
+    // Step 6: Get image URL
+    const seeAsset =  await goFetch(assetAddress)
+    console.log(seeAsset)
+
+    console.log("Process completed successfully!");
+  } catch (error) {
+    console.error("An error occurred in the main process:", error);
+  }
+}
+ 
   // Run the main function
   main().then(() => console.log("Main function executed")).catch(console.error);
