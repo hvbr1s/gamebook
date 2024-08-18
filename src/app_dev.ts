@@ -475,12 +475,8 @@ app.post('/post_action', async (req: Request, res: Response) => {
     });
 
     res.status(200).json(payload);
-    const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
-    if (transactionSignature) {
-      console.log(`Found transaction with memo: ${transactionSignature}`);
-      await processPostTransaction(description, playerChoice);
-    }
+    processPostTransaction(description, playerChoice, connection, user_account, memo)
 
   } catch (error) {
     console.error('An error occurred:', error);
@@ -533,52 +529,60 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
   return null;
 }
 
-async function processPostTransaction(description: string, playerChoice: string) {
-  try {
-    const choiceConsequence = await consequence(description, playerChoice);
-    console.log(choiceConsequence);
-    const continueStory = `${onceUponATime}\n\n${choiceConsequence}`;
-    console.log(`Story with consequence-> ${continueStory}`)
+async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string) {
 
-    console.log("Defining config for the new scene...");
-    const CONFIG = await defineConfig(continueStory, choiceConsequence);
-    console.log("Config defined:", CONFIG);
+  const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
-    console.log("Creating image...");
-    const imagePath = await createImage(CONFIG);
-    console.log("Image created at:", imagePath);
+  if (transactionSignature) {
+    console.log(`Found transaction with memo: ${transactionSignature}`);
 
-    console.log("Creating URI...");
-    // const imageFile = { uri: imagePath, name: CONFIG.imgFileName, extension: 'png' };
-    const uri = await createURI(imagePath, CONFIG);
-    console.log("Metadata URI created:", uri);
-
-    console.log("Creating asset...");
-    const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-    const newAssetAddress = await createAsset(uriConfig);
-    const assetURL = uriConfig.imageURI;
-    console.log("Asset created with address:", newAssetAddress);
-    console.log("Asset URL:", assetURL);
-
-    fs.unlink(imagePath, (err) => {
-      if (err) {
-        console.error('Failed to delete the local image file:', err);
-      } else {
-        console.log(`Local image file deleted successfully 🗑️`);
-      }
-    });
-
-    const seeAsset = await goFetch(newAssetAddress);
-    console.log(seeAsset);
-
-    // Update the global assetAddress with the new asset address
-    assetAddress = newAssetAddress;
-    console.log("Global assetAddress updated to:", assetAddress);
-
-    console.log("Process completed successfully!");
-  } catch (error) {
-    console.error("An error occurred in the post-transaction process:", error);
-    throw error;
+    try {
+      const choiceConsequence = await consequence(description, playerChoice);
+      console.log(choiceConsequence);
+      const continueStory = `${onceUponATime}\n\n${choiceConsequence}`;
+      console.log(`Story with consequence-> ${continueStory}`)
+  
+      console.log("Defining config for the new scene...");
+      const CONFIG = await defineConfig(continueStory, choiceConsequence);
+      console.log("Config defined:", CONFIG);
+  
+      console.log("Creating image...");
+      const imagePath = await createImage(CONFIG);
+      console.log("Image created at:", imagePath);
+  
+      console.log("Creating URI...");
+      const uri = await createURI(imagePath, CONFIG);
+      console.log("Metadata URI created:", uri);
+  
+      console.log("Creating asset...");
+      const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
+      const newAssetAddress = await createAsset(uriConfig);
+      const assetURL = uriConfig.imageURI;
+      console.log("Asset created with address:", newAssetAddress);
+      console.log("Asset URL:", assetURL);
+  
+      fs.unlink(imagePath, (err) => {
+        if (err) {
+          console.error('Failed to delete the local image file:', err);
+        } else {
+          console.log(`Local image file deleted successfully 🗑️`);
+        }
+      });
+  
+      const seeAsset = await goFetch(newAssetAddress);
+      console.log(seeAsset);
+  
+      // Update the global assetAddress with the new asset address
+      assetAddress = newAssetAddress;
+      console.log("Global assetAddress updated to:", assetAddress);
+  
+      console.log("Process completed successfully!");
+    } catch (error) {
+      console.error("An error occurred in the post-transaction process:", error);
+      throw error;
+    }
+  }else{
+    console.log("Oops, couldn't find the transaction!")
   }
 }
 
