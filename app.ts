@@ -342,13 +342,15 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C";
+//let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C"; //rune start
+let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
 // Create a new express application instance
 const app: express.Application = express();
 app.use(cors());
+app.use(express.json());
 
 app.get('/get_action', async (req, res) => {
   try {
@@ -404,7 +406,6 @@ app.options('/post_action', (req: Request, res: Response) => {
 res.header(ACTIONS_CORS_HEADERS).status(200).end();
 });
 
-app.use(express.json());
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
     // Fetch the asset using the provided UMI instance
