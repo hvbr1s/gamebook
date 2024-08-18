@@ -26,22 +26,20 @@ import {
   Transaction, 
   TransactionInstruction,
   TransactionSignature,
-  Keypair
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { mplCore } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
-import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
+import { keypairIdentity, generateSigner, GenericFile, lamports } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 
 /// Load environment variable
 dotenv.config();
 
 // Initiate sender wallet, treasury wallet and connection to Solana
-const QUICKNODE_KEY = process.env.QUICKNODE_DEVNET_KEY
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_KEY}/`; // devnet 
+const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)
@@ -72,26 +70,33 @@ async function createNewConnection(rpcUrl: string){
   return connection;
 }
 
-// Fee setting function
-async function getFeeInLamports(connection: Connection): Promise<number> {
-  // 1. Get the current SOL/USD price
-  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-  const data = await response.json();
-  const solPrice = data.solana.usd;
+async function getFeeInLamports(): Promise<number> {
+  try {
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    const solPrice = data.solana.usd;
 
-  // 2. Calculate SOL equivalent of 5 USD
-  const solAmount = 5 / solPrice;
-
-  // 3. Convert SOL to lamports
-  const lamports = solAmount * LAMPORTS_PER_SOL;
-
-  // Round to the nearest whole number of lamports
-  return Math.round(lamports);
+    if (solPrice && typeof solPrice === 'number' && solPrice > 0) {
+      const solAmount = 5 / solPrice; //target fee $5
+      const lamports = Math.round(solAmount * LAMPORTS_PER_SOL);
+      console.log(`Dynamic fee: ${lamports} lamports (${solAmount.toFixed(4)} SOL)`);
+      return lamports;
+    } else {
+      throw new Error('Invalid SOL price data');
+    }
+  } catch (error) {
+    console.error('Error fetching dynamic fee, using fallback:', error);
+    const fallbackLamports = Math.round(0.05 * LAMPORTS_PER_SOL);
+    console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
+    return fallbackLamports;
+  }
 }
 
 ///// AI LOGIC
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
-
 const gpt_llm = "gpt-4o-2024-08-06"
 
   interface NFTConfig {
@@ -120,8 +125,7 @@ async function consequence(description,playerChoice): Promise<string>{
                 '${description}'
                 Toly decided the following:
                 '${playerChoice}'
-                Please write ONE SENTENCE about the direct consequences of Toly's action on the story.
-            `
+                Please write ONE SENTENCE about the direct consequences of Toly's action on the story.`
         }
     ],
     model: gpt_llm,
@@ -439,7 +443,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const transaction = new Transaction();
 
     const { blockhash } = await connection.getLatestBlockhash();
-    const mintingFee = await getFeeInLamports(connection);
+    const mintingFee = await getFeeInLamports();
     const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
     console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
 
