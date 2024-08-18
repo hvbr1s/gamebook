@@ -183,7 +183,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
         }
 
         const CONFIG: NFTConfig = {
-            uploadPath: './image/',
+            uploadPath: '../image/',
             imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
@@ -343,7 +343,8 @@ async function goFetch(assetAddress) {
 
 // Declaring global assetAddress
 //let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C"; //rune start
-let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
+//let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //portal start//forest start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
