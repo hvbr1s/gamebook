@@ -382,15 +382,15 @@ app.get('/get_action', async (req, res) => {
         actions: [
           {
             "label": choiceOne,
-            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
+            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceOne)}`
           },
           {
             "label": choiceTwo,
-            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
+            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceTwo)}`
           },
           {
             "label": choiceThree,
-            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
+            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceThree)}`
           }
         ]
       }
