@@ -40,8 +40,8 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 dotenv.config();
 
 // Initiate sender wallet, treasury wallet and connection to Solana
-const QUICKNODE_KEY = process.env.QUICKNODE_RPC_KEY
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_KEY}/`;
+const QUICKNODE_KEY = process.env.QUICKNODE_DEVNET_KEY
+const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_KEY}/`; // devnet 
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)
