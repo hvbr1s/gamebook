@@ -183,7 +183,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
         }
 
         const CONFIG: NFTConfig = {
-            uploadPath: './image/',
+            uploadPath: '../image/',
             imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
