@@ -40,8 +40,8 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 dotenv.config();
 
 // Initiate sender wallet, treasury wallet and connection to Solana
-const QUICKNODE_KEY = process.env.QUICKNODE_RPC_KEY
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_KEY}/`;
+const QUICKNODE_KEY = process.env.QUICKNODE_MAINNET_KEY
+const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${QUICKNODE_KEY}/`;
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)
@@ -581,11 +581,13 @@ async function processPostTransaction(description: string, playerChoice: string)
   }
 }
 
-// Initialize port and start dev server
+// The port the express app will listen on
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
-app.listen(port, () => {
-  console.log(`Listening at http://localhost:${port}/`);
-  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
+
+// Start prod server
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${port}`);
+  console.log(`Test your blinks https://actions-55pw.onrender.com/get_action \n at https://www.dial.to/`)
 });
 
 export default app;
