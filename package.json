@@ -2,6 +2,7 @@
   "license": "ISC",
   "scripts": {
     "dev": "tsx app_dev.ts",
+    "build":"tsc",
     "init": "tsx initialize_story.ts",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
