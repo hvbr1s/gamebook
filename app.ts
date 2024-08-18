@@ -26,6 +26,7 @@ import {
   Transaction, 
   TransactionInstruction,
   TransactionSignature,
+  Keypair
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 // Metaplex-related imports
@@ -46,8 +47,17 @@ const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pr
 const newUMI = createUmi(QUICKNODE_RPC)
 
 // Load wallet
-const WALLET_PATH = '/home/dan/gamebook/secrets/GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z.json'
-const secretKey = JSON.parse(fs.readFileSync(WALLET_PATH, 'utf-8'))
+function getKeypairFromEnvironment(): Uint8Array {
+  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
+  if (!privateKeyString) {
+    throw new Error('Minter key is not set in environment variables');
+  }
+  // Convert the private key string to an array of numbers
+  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
+  // Return a Uint8Array from the array of numbers
+  return new Uint8Array(privateKeyArray);
+}
+const secretKey = getKeypairFromEnvironment()
 const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
 
 // Initialize UMI instance with wallet
