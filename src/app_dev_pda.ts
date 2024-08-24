@@ -29,10 +29,7 @@ import {
   Keypair,
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
-import { 
-  TOKEN_PROGRAM_ID, 
-} from '@solana/spl-token';
-import { Program, Idl, AnchorProvider, setProvider } from "@coral-xyz/anchor";
+import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/anchor";
 import idl from "../pda/pda_account.json";
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
@@ -68,45 +65,52 @@ function getKeypairFromEnvironment(): Uint8Array {
 const secretKey = getKeypairFromEnvironment()
 const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
 const payerKeypair = Keypair.fromSecretKey(secretKey);
-const anchor_wallet = {
-  publicKey: new PublicKey(keypair.publicKey),
-  signTransaction: async (tx) => tx,
-  signAllTransactions: async (txs) => txs,
-};
 
 // Initialize program object
-async function initializeProgram(): Promise<Program<Idl>> {
-  const connection = await createNewConnection(QUICKNODE_RPC);
-  const provider = new AnchorProvider(connection, anchor_wallet, {});
+async function initializeProgram(connection): Promise<Program<Idl>> {
+  const wallet = new Wallet(payerKeypair);
+  const provider = new AnchorProvider(connection, wallet, {});
   setProvider(provider);
-
-  return new Program(idl as Idl, provider);
+  const program = new Program(idl as Idl, provider);
+  return program;
 }
-const PROGRAM = initializeProgram()
-const PROGRAM_ID = new PublicKey('3rYZg5TUpYYnvtVgbPhuMzdfb2hCGyxokD4veAanrkHf');
+
+const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
 
 
-async function createPda(PROGRAM, pda: PublicKey, user_account: PublicKey, payer: Keypair): Promise<string> {
+async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair): Promise<string> {
   try {
+
+    console.log(`Creating PDA for user: ${user_account.toString()}`);
+
+    // Derive the PDA
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("gamebook"), user_account.toBuffer()],
+      PROGRAM.programId
+    );
+
     const tx = await PROGRAM.methods
-      .initialize()
-      .accounts({
-        user: user_account,
-        pdaAccount: pda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([payer])
-      .rpc();
+    .initialize()
+    .accounts({
+      user: user_account,
+      payer: payer.publicKey,
+      pdaAccount: pda,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([payer])
+    .rpc();
 
     console.log('Transaction signature:', tx);
     console.log('PDA initialized:', pda.toString());
     
     return pda.toString();
+
   } catch (error) {
-    console.error('Error initializing PDA:', error);
+    console.error('Error in createPda:', error);
     throw error;
   }
 }
+
 
 // Initialize UMI instance with wallet
 const umi = newUMI
@@ -371,33 +375,6 @@ async function createAsset(CONFIG: UriConfig): Promise<string> {
   }
 }
 
-async function getLatestNFTForUser(connection: Connection, userPDA: PublicKey): Promise<string | null> {
-  try {
-    const nftAccounts = await connection.getParsedTokenAccountsByOwner(userPDA, {
-      programId: TOKEN_PROGRAM_ID
-    });
-    
-    const nfts = nftAccounts.value.filter(account => 
-      account.account.data.parsed.info.tokenAmount.uiAmount === 1 &&
-      account.account.data.parsed.info.tokenAmount.decimals === 0
-    );
-
-    if (nfts.length === 0) {
-      return null;
-    }
-
-    // Sort NFTs by creation time (newest first)
-    nfts.sort((a, b) => b.account.data.parsed.info.tokenAmount.uiAmount - a.account.data.parsed.info.tokenAmount.uiAmount);
-
-    // Return the mint address of the newest NFT
-    return nfts[0].account.data.parsed.info.mint;
-  } catch (error) {
-    console.error("Error getting latest NFT for user:", error);
-    return null;
-  }
-}
-
-
 async function goFetch(assetAddress) {
   try {
     // Fetch the asset using the provided UMI instance
@@ -422,7 +399,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start on devnet
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -487,46 +464,47 @@ app.options('/post_action', (req: Request, res: Response) => {
 
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
-      // Fetch the asset using the provided UMI instance
-      if (!assetAddress) {
-        throw new Error('Asset address is not defined');
-      }
-      const asset = await fetchAsset(umi, assetAddress);
-      const assetUri = asset.uri;
-      const response = await axios.get(assetUri);
-      const metadata = response.data;
-      const { description } = metadata;
-      console.log(description);
-  
-      const playerChoice = typeof req.query.choice === 'string' 
-        ? decodeURIComponent(req.query.choice) 
-        : '';
-      console.log(playerChoice);
-      
-      let user_account: PublicKey;
-      try {
-        const body: ActionPostRequest = req.body;
-        user_account = new PublicKey(body.account);
-        console.log(user_account);
-      } catch (error) {
-        console.error('Invalid account:', error);
-        return res.status(400).json({ error: 'Invalid account' });
-      }
-  
-      const connection = await createNewConnection(QUICKNODE_RPC);
-  
-      // Derive PDA
-      const [PDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("gamebook"), user_account.toBuffer()],
-        PROGRAM_ID,
-      );
-  
+    // Fetch the asset using the provided UMI instance
+    if (!assetAddress) {
+      throw new Error('Asset address is not defined');
+    }
+    const asset = await fetchAsset(umi, assetAddress);
+    const assetUri = asset.uri;
+    const response = await axios.get(assetUri);
+    const metadata = response.data;
+    const { description } = metadata;
+    console.log(description);
+
+    const playerChoice = typeof req.query.choice === 'string' 
+      ? decodeURIComponent(req.query.choice) 
+      : '';
+    console.log(playerChoice);
+    
+    let user_account: PublicKey;
+    try {
+      const body: ActionPostRequest = req.body;
+      user_account = new PublicKey(body.account);
+      console.log(user_account);
+    } catch (error) {
+      console.error('Invalid account:', error);
+      return res.status(400).json({ error: 'Invalid account' });
+    }
+
+    const connection = await createNewConnection(QUICKNODE_RPC);
+
+    // Derive PDA
+    const [PDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("gamebook"), user_account.toBuffer()],
+      PROGRAM_ID,
+    );
+
     // Check if PDA already exists
     const pdaInfo = await connection.getAccountInfo(PDA);
     if (!pdaInfo) {
       // PDA doesn't exist, create it
       console.log("Creating PDA for user...");
-      const pda_account_address = await createPda(PROGRAM, PDA, user_account, payerKeypair);
+      const program = await initializeProgram(connection)
+      const pda_account_address = await createPda(program, user_account, payerKeypair);
       console.log(`PDA account for user created at ${pda_account_address}`);
     } else {
       console.log("PDA already exists for this user");
@@ -573,7 +551,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     res.status(200).json(payload);
 
-    processPostTransaction(description, playerChoice, connection, user_account, memo)
+    processPostTransaction(description, playerChoice, connection, user_account, memo, PDA)
 
   } catch (error) {
     console.error('An error occurred:', error);
@@ -626,7 +604,7 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
   return null;
 }
 
-async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string) {
+async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string, pda: PublicKey) {
 
   const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
@@ -654,17 +632,11 @@ async function processPostTransaction(description: string, playerChoice: string,
       console.log("Creating asset...");
       const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
       const newAssetAddress = await createAsset(uriConfig);
-      const newAssetAddressPubKey = new PublicKey(newAssetAddress)
       const assetURL = uriConfig.imageURI;
       console.log("Asset created with address:", newAssetAddress);
       console.log("Asset URL:", assetURL);
 
-      // Transfer the new NFT to the user's PDA
-      const [PDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("gamebook"), user_account.toBuffer()],
-        PROGRAM_ID
-      );
-      await transferNFTToPDA(newAssetAddressPubKey, PDA);
+      await transferNFTToPDA(new PublicKey(newAssetAddress), pda);
   
       fs.unlink(imagePath, (err) => {
         if (err) {
@@ -674,11 +646,11 @@ async function processPostTransaction(description: string, playerChoice: string,
         }
       });
   
-      const seeAsset = await goFetch(PDA);
+      const seeAsset = await goFetch(newAssetAddress);
       console.log(seeAsset);
-
+  
       // Update the global assetAddress with the new asset address
-      assetAddress = PDA.toString();
+      assetAddress = pda.toString();
       console.log("Global assetAddress updated to:", assetAddress);
   
       console.log("Process completed successfully!");
@@ -691,12 +663,11 @@ async function processPostTransaction(description: string, playerChoice: string,
   }
 }
 
-// Modify the transferNFTToPDA function
-async function transferNFTToPDA(nftAddress: PublicKey, pdaAddress: PublicKey) {
+async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
   try {
     const result = await transferV1(umi, {
-      asset: publicKey(nftAddress),
-      newOwner: publicKey(pdaAddress),
+      asset: publicKey(newAssetAddress),
+      newOwner: publicKey(pdaAddress)
     }).sendAndConfirm(umi);
 
     console.log(`NFT transferred to PDA. Transaction signature: ${result.signature}`);

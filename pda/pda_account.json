@@ -1,5 +1,5 @@
 {
-  "address": "3rYZg5TUpYYnvtVgbPhuMzdfb2hCGyxokD4veAanrkHf",
+  "address": "EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8",
   "metadata": {
     "name": "pda_account",
     "version": "0.1.0",
@@ -21,7 +21,10 @@
       ],
       "accounts": [
         {
-          "name": "user",
+          "name": "user"
+        },
+        {
+          "name": "payer",
           "writable": true,
           "signer": true
         },
