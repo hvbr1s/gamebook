@@ -21,9 +21,9 @@ import * as path from 'path';
 dotenv.config();
 
 
-// Initiate sender wallet, treasury wallet and connection to Solana
-const QUICKNODE_KEY = process.env.QUICKNODE_RPC_KEY
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_KEY}/`;
+// Initiate RPC provider
+//const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
+const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)

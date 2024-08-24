@@ -32,7 +32,7 @@ import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { mplCore } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
-import { keypairIdentity, generateSigner, GenericFile, lamports } from '@metaplex-foundation/umi';
+import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 
 /// Load environment variable
@@ -65,8 +65,9 @@ const umi = newUMI
   .use(keypairIdentity(keypair));
 
 async function createNewConnection(rpcUrl: string){
+  console.log(`Connecting to Solana...🔌`)
   const connection = await new Connection(rpcUrl)
-  console.log(`Connection to Solana established`)
+  console.log(`Connection to Solana established🔌✅`)
   return connection;
 }
 
@@ -187,7 +188,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
         }
 
         const CONFIG: NFTConfig = {
-            uploadPath: '../image/',
+            uploadPath: './image/',
             imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
@@ -297,8 +298,6 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
     throw error;
   }
 }
-
-const assetSigner = generateSigner(umi)
 
 async function createAsset(CONFIG: UriConfig): Promise<string> {
   try {
@@ -440,13 +439,14 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = await createNewConnection(QUICKNODE_RPC);
-    const transaction = new Transaction();
+    const {blockhash} = await connection.getLatestBlockhash();
+    console.log(`Latest blockhash: ${blockhash}`)
 
-    const { blockhash } = await connection.getLatestBlockhash();
     const mintingFee = await getFeeInLamports();
     const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
     console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
 
+    const transaction = new Transaction();
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,

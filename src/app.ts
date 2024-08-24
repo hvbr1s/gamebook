@@ -38,12 +38,12 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 /// Load environment variable
 dotenv.config();
 
-// Initiate sender wallet, treasury wallet and connection to Solana
-// const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+// Initiate RPC provider
+const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
+//const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
-const newUMI = createUmi(QUICKNODE_RPC)
+const newUMI = createUmi(new Connection(QUICKNODE_RPC))
 
 // Load wallet
 function getKeypairFromEnvironment(): Uint8Array {
@@ -65,11 +65,12 @@ const umi = newUMI
   .use(irysUploader())
   .use(keypairIdentity(keypair));
 
-async function createNewConnection(rpcUrl: string){
-  const connection = await new Connection(rpcUrl)
-  console.log(`Connection to Solana established`)
-  return connection;
-}
+  async function createNewConnection(rpcUrl: string){
+    console.log(`Connecting to Solana...🔌`)
+    const connection = await new Connection(rpcUrl)
+    console.log(`Connection to Solana established🔌✅`)
+    return connection;
+  }
 
 async function getFeeInLamports(): Promise<number> {
   try {
@@ -81,7 +82,7 @@ async function getFeeInLamports(): Promise<number> {
     const solPrice = data.solana.usd;
 
     if (solPrice && typeof solPrice === 'number' && solPrice > 0) {
-      const solAmount = 5 / solPrice; //target fee $5
+      const solAmount = 2 / solPrice; //target fee $5
       const lamports = Math.round(solAmount * LAMPORTS_PER_SOL);
       console.log(`Dynamic fee: ${lamports} lamports (${solAmount.toFixed(4)} SOL)`);
       return lamports;
@@ -90,7 +91,7 @@ async function getFeeInLamports(): Promise<number> {
     }
   } catch (error) {
     console.error('Error fetching dynamic fee, using fallback:', error);
-    const fallbackLamports = Math.round(0.05 * LAMPORTS_PER_SOL);
+    const fallbackLamports = Math.round(0.01 * LAMPORTS_PER_SOL);
     console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
     return fallbackLamports;
   }
@@ -98,7 +99,6 @@ async function getFeeInLamports(): Promise<number> {
 
 ///// AI LOGIC
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
-
 const gpt_llm = "gpt-4o-2024-08-06"
 
   interface NFTConfig {
@@ -300,8 +300,6 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
   }
 }
 
-const assetSigner = generateSigner(umi)
-
 async function createAsset(CONFIG: UriConfig): Promise<string> {
   try {
     // Generate a new signer for the asset
@@ -349,7 +347,7 @@ async function goFetch(assetAddress) {
 
 // Declaring global assetAddress
 //let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C"; //rune start
-let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
+let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -441,13 +439,14 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = await createNewConnection(QUICKNODE_RPC);
-    const transaction = new Transaction();
+    const {blockhash} = await connection.getLatestBlockhash();
+    console.log(`Latest blockhash: ${blockhash}`)
 
-    const { blockhash } = await connection.getLatestBlockhash();
     const mintingFee = await getFeeInLamports();
     const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
     console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
 
+    const transaction = new Transaction();
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
