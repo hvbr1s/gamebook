@@ -41,6 +41,9 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 /// Load environment variable
 dotenv.config();
 
+// Initialize Mint wallet
+const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
+
 // Initiate sender wallet, treasury wallet and connection to Solana
 const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
@@ -134,7 +137,7 @@ async function getFeeInLamports(): Promise<number> {
     }
   } catch (error) {
     console.error('Error fetching dynamic fee, using fallback:', error);
-    const fallbackLamports = Math.round(0.05 * LAMPORTS_PER_SOL);
+    const fallbackLamports = Math.round(0.03 * LAMPORTS_PER_SOL);
     console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
     return fallbackLamports;
   }
@@ -389,9 +392,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-//let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C"; //rune start
-//let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
-let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //portal start//forest start
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -485,18 +486,17 @@ app.post('/post_action', async (req: Request, res: Response) => {
     const connection = await createNewConnection(QUICKNODE_RPC);
 
     // Derive PDA
-    const [PDA, bump] = PublicKey.findProgramAddressSync(
+    const [PDA] = PublicKey.findProgramAddressSync(
       [Buffer.from("gamebook"), user_account.toBuffer()],
       PROGRAM_ID,
     );
 
     // Check if PDA already exists
-    const payer_account = new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z')
     const pdaInfo = await connection.getAccountInfo(PDA);
     if (!pdaInfo) {
       // PDA doesn't exist, create it
       console.log("Creating PDA for user...");
-      const pda_account_address = await createPda(await PROGRAM, PDA, user_account, payerKeypair);
+      const pda_account_address = await createPda(PROGRAM, PDA, user_account, payerKeypair);
       console.log(`PDA account for user created at ${pda_account_address}`);
     } else {
       console.log("PDA already exists for this user");
