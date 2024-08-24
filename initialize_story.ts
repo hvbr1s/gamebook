@@ -214,6 +214,16 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<{ imageU
   }
 }
 
+// async function createCollection (): Promise<string>{
+//   const collectionSigner = generateSigner(umi)
+//   const result = await createCollection(umi, {
+//     collection: collectionSigner,
+//     name: 'My Collection',
+//     uri: 'https://arweave.net/FvgldJJpZpe7WKVi0sL6ebx_0CekE9Y4pObGsiDRH9I',
+//   }).sendAndConfirm(umi);
+
+// }
+
 async function createAsset(CONFIG: UriConfig, metadataUri: string): Promise<string> {
   try {
     const assetSigner = generateSigner(umi);

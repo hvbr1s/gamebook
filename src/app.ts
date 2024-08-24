@@ -38,6 +38,9 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 /// Load environment variable
 dotenv.config();
 
+// Initialize Mint wallet
+const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
+
 // Initiate RPC provider
 const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
 //const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
@@ -91,8 +94,8 @@ async function getFeeInLamports(): Promise<number> {
     }
   } catch (error) {
     console.error('Error fetching dynamic fee, using fallback:', error);
-    const fallbackLamports = Math.round(0.01 * LAMPORTS_PER_SOL);
-    console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
+    const fallbackLamports = Math.round(0.03 * LAMPORTS_PER_SOL);
+    console.log(`Fallback fee: ${fallbackLamports} lamports (0.03 SOL)`);
     return fallbackLamports;
   }
 }
@@ -450,7 +453,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
-        toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+        toPubkey: MINT,
         lamports: mintingFee,
       })
     );

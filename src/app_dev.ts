@@ -26,8 +26,11 @@ import {
   Transaction, 
   TransactionInstruction,
   TransactionSignature,
+  Keypair,
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
+import { Program, Idl, AnchorProvider, setProvider } from "@coral-xyz/anchor";
+import idl from "../pda/pda_account.json";
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { mplCore } from '@metaplex-foundation/mpl-core';
@@ -57,6 +60,47 @@ function getKeypairFromEnvironment(): Uint8Array {
 }
 const secretKey = getKeypairFromEnvironment()
 const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
+const payerKeypair = Keypair.fromSecretKey(secretKey);
+const anchor_wallet = {
+  publicKey: new PublicKey(keypair.publicKey),
+  signTransaction: async (tx) => tx,
+  signAllTransactions: async (txs) => txs,
+};
+
+// Initialize program object
+async function initializeProgram(): Promise<Program<Idl>> {
+  const connection = await createNewConnection(QUICKNODE_RPC);
+  const provider = new AnchorProvider(connection, anchor_wallet, {});
+  setProvider(provider);
+
+  return new Program(idl as Idl, provider);
+}
+const PROGRAM = initializeProgram()
+const PROGRAM_ID = new PublicKey('3rYZg5TUpYYnvtVgbPhuMzdfb2hCGyxokD4veAanrkHf');
+
+
+async function createPda(PROGRAM, pda: PublicKey, user_account: PublicKey, payer: Keypair): Promise<string> {
+  try {
+    const tx = await PROGRAM.methods
+      .initialize()
+      .accounts({
+        user: user_account,
+        pdaAccount: pda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([payer])
+      .rpc();
+
+    console.log('Transaction signature:', tx);
+    console.log('PDA initialized:', pda.toString());
+    
+    return pda.toString();
+  } catch (error) {
+    console.error('Error initializing PDA:', error);
+    throw error;
+  }
+}
+
 
 // Initialize UMI instance with wallet
 const umi = newUMI
@@ -439,6 +483,25 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = await createNewConnection(QUICKNODE_RPC);
+
+    // Derive PDA
+    const [PDA, bump] = PublicKey.findProgramAddressSync(
+      [Buffer.from("gamebook"), user_account.toBuffer()],
+      PROGRAM_ID,
+    );
+
+    // Check if PDA already exists
+    const payer_account = new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z')
+    const pdaInfo = await connection.getAccountInfo(PDA);
+    if (!pdaInfo) {
+      // PDA doesn't exist, create it
+      console.log("Creating PDA for user...");
+      const pda_account_address = await createPda(await PROGRAM, PDA, user_account, payerKeypair);
+      console.log(`PDA account for user created at ${pda_account_address}`);
+    } else {
+      console.log("PDA already exists for this user");
+    }
+
     const {blockhash} = await connection.getLatestBlockhash();
     console.log(`Latest blockhash: ${blockhash}`)
 
