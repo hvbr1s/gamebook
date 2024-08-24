@@ -347,7 +347,7 @@ async function goFetch(assetAddress) {
 
 // Declaring global assetAddress
 //let assetAddress: string = "6DX86jsJNGVXPUcaj31LxqdiNEtpLY5V433iU8uV7e6C"; //rune start
-let assetAddress: string = "F9zYUkxRJBWMHFq46bSL5gR3Xfgu6fhzti9ffpFw8dp6"; //portal start
+let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
