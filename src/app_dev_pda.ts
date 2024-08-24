@@ -423,7 +423,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-//let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -434,22 +434,12 @@ app.use(express.json());
 
 app.get('/get_action', async (req, res) => {
   try {
-    const userAccount = new PublicKey(req.query.account as string);
-    const [PDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("gamebook"), userAccount.toBuffer()],
-      PROGRAM_ID
-    );
-
-    const connection = await createNewConnection(QUICKNODE_RPC);
-    let latestNFTAddress = await getLatestNFTForUser(connection, PDA);
-
-    if (!latestNFTAddress) {
-      // If no NFT found, use the initial NFT
-      latestNFTAddress = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; // forest start
+    if (!assetAddress) {
+      throw new Error('Asset address not set');
     }
 
-    // Fetch the NFT using the provided UMI instance
-    const asset = await fetchAsset(umi, latestNFTAddress);
+    // Fetch the asset using the provided UMI instance
+    const asset = await fetchAsset(umi, assetAddress);
 
     // Get the asset's URI
     const assetUri = asset.uri;
@@ -498,41 +488,40 @@ app.options('/post_action', (req: Request, res: Response) => {
 
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
-    const userAccount = new PublicKey(req.query.account as string);
-    const [PDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("gamebook"), userAccount.toBuffer()],
-      PROGRAM_ID
-    );
-
-    const connection = await createNewConnection(QUICKNODE_RPC);
-    let latestNFTAddress = await getLatestNFTForUser(connection, PDA);
-    const asset = await fetchAsset(umi, latestNFTAddress);
-
-    if (!latestNFTAddress) {
-      // If no NFT found, use the initial NFT
-      latestNFTAddress = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; // forest start
-    }
-    const assetUri = asset.uri;
-    const response = await axios.get(assetUri);
-    const metadata = response.data;
-    const { description } = metadata;
-    console.log(description);
-
-    const playerChoice = typeof req.query.choice === 'string' 
-      ? decodeURIComponent(req.query.choice) 
-      : '';
-    console.log(playerChoice);
-    
-    let user_account: PublicKey;
-    try {
-      const body: ActionPostRequest = req.body;
-      user_account = new PublicKey(body.account);
-      console.log(user_account);
-    } catch (error) {
-      console.error('Invalid account:', error);
-      return res.status(400).json({ error: 'Invalid account' });
-    }
-
+      // Fetch the asset using the provided UMI instance
+      if (!assetAddress) {
+        throw new Error('Asset address is not defined');
+      }
+      const asset = await fetchAsset(umi, assetAddress);
+      const assetUri = asset.uri;
+      const response = await axios.get(assetUri);
+      const metadata = response.data;
+      const { description } = metadata;
+      console.log(description);
+  
+      const playerChoice = typeof req.query.choice === 'string' 
+        ? decodeURIComponent(req.query.choice) 
+        : '';
+      console.log(playerChoice);
+      
+      let user_account: PublicKey;
+      try {
+        const body: ActionPostRequest = req.body;
+        user_account = new PublicKey(body.account);
+        console.log(user_account);
+      } catch (error) {
+        console.error('Invalid account:', error);
+        return res.status(400).json({ error: 'Invalid account' });
+      }
+  
+      const connection = await createNewConnection(QUICKNODE_RPC);
+  
+      // Derive PDA
+      const [PDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("gamebook"), user_account.toBuffer()],
+        PROGRAM_ID,
+      );
+  
     // Check if PDA already exists
     const pdaInfo = await connection.getAccountInfo(PDA);
     if (!pdaInfo) {
@@ -666,7 +655,7 @@ async function processPostTransaction(description: string, playerChoice: string,
       console.log("Creating asset...");
       const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
       const newAssetAddress = await createAsset(uriConfig);
-      const newAssetAddressPubKey = new PublicKey('newAssetAddress')
+      const newAssetAddressPubKey = new PublicKey(newAssetAddress)
       const assetURL = uriConfig.imageURI;
       console.log("Asset created with address:", newAssetAddress);
       console.log("Asset URL:", assetURL);
@@ -686,8 +675,12 @@ async function processPostTransaction(description: string, playerChoice: string,
         }
       });
   
-      const seeAsset = await goFetch(newAssetAddress);
+      const seeAsset = await goFetch(PDA);
       console.log(seeAsset);
+
+      // Update the global assetAddress with the new asset address
+      assetAddress = PDA.toString();
+      console.log("Global assetAddress updated to:", assetAddress);
   
       console.log("Process completed successfully!");
     } catch (error) {
