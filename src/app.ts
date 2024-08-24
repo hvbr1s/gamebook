@@ -38,12 +38,12 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 /// Load environment variable
 dotenv.config();
 
-// Initiate sender wallet, treasury wallet and connection to Solana
-// const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+// Initiate RPC provider
+const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
+//const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
-const newUMI = createUmi(QUICKNODE_RPC)
+const newUMI = createUmi(new Connection(QUICKNODE_RPC))
 
 // Load wallet
 function getKeypairFromEnvironment(): Uint8Array {
@@ -65,11 +65,12 @@ const umi = newUMI
   .use(irysUploader())
   .use(keypairIdentity(keypair));
 
-async function createNewConnection(rpcUrl: string){
-  const connection = await new Connection(rpcUrl)
-  console.log(`Connection to Solana established`)
-  return connection;
-}
+  async function createNewConnection(rpcUrl: string){
+    console.log(`Connecting to Solana...🔌`)
+    const connection = await new Connection(rpcUrl)
+    console.log(`Connection to Solana established🔌✅`)
+    return connection;
+  }
 
 async function getFeeInLamports(): Promise<number> {
   try {
@@ -98,7 +99,6 @@ async function getFeeInLamports(): Promise<number> {
 
 ///// AI LOGIC
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
-
 const gpt_llm = "gpt-4o-2024-08-06"
 
   interface NFTConfig {
@@ -300,8 +300,6 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
   }
 }
 
-const assetSigner = generateSigner(umi)
-
 async function createAsset(CONFIG: UriConfig): Promise<string> {
   try {
     // Generate a new signer for the asset
@@ -441,13 +439,14 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = await createNewConnection(QUICKNODE_RPC);
-    const transaction = new Transaction();
+    const {blockhash} = await connection.getLatestBlockhash();
+    console.log(`Latest blockhash: ${blockhash}`)
 
-    const { blockhash } = await connection.getLatestBlockhash();
     const mintingFee = await getFeeInLamports();
     const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
     console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
 
+    const transaction = new Transaction();
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
