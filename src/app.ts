@@ -38,6 +38,8 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 /// Load environment variable
 dotenv.config();
 
+const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
+
 // Initiate RPC provider
 const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
 //const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
@@ -450,7 +452,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
-        toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+        toPubkey: MINT,
         lamports: mintingFee,
       })
     );
