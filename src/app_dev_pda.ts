@@ -26,11 +26,15 @@ import {
   Transaction, 
   TransactionInstruction,
   TransactionSignature,
+  Keypair,
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
+import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/anchor";
+import idl from "../pda/pda_account.json";
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
-import { mplCore } from '@metaplex-foundation/mpl-core';
+import { publicKey } from '@metaplex-foundation/umi';
+import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
@@ -41,12 +45,11 @@ dotenv.config();
 // Initialize Mint wallet
 const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
 
-// Initiate RPC provider
-const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-//const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+// Initiate sender wallet, treasury wallet and connection to Solana
+const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
-const newUMI = createUmi(new Connection(QUICKNODE_RPC))
+const newUMI = createUmi(QUICKNODE_RPC)
 
 // Load wallet
 function getKeypairFromEnvironment(): Uint8Array {
@@ -61,6 +64,53 @@ function getKeypairFromEnvironment(): Uint8Array {
 }
 const secretKey = getKeypairFromEnvironment()
 const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
+const payerKeypair = Keypair.fromSecretKey(secretKey);
+
+// Initialize program object
+async function initializeProgram(connection): Promise<Program<Idl>> {
+  const wallet = new Wallet(payerKeypair);
+  const provider = new AnchorProvider(connection, wallet, {});
+  setProvider(provider);
+  const program = new Program(idl as Idl, provider);
+  return program;
+}
+
+const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
+
+
+async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair): Promise<string> {
+  try {
+
+    console.log(`Creating PDA for user: ${user_account.toString()}`);
+
+    // Derive the PDA
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("gamebook"), user_account.toBuffer()],
+      PROGRAM.programId
+    );
+
+    const tx = await PROGRAM.methods
+    .initialize()
+    .accounts({
+      user: user_account,
+      payer: payer.publicKey,
+      pdaAccount: pda,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([payer])
+    .rpc();
+
+    console.log('Transaction signature:', tx);
+    console.log('PDA initialized:', pda.toString());
+    
+    return pda.toString();
+
+  } catch (error) {
+    console.error('Error in createPda:', error);
+    throw error;
+  }
+}
+
 
 // Initialize UMI instance with wallet
 const umi = newUMI
@@ -68,12 +118,12 @@ const umi = newUMI
   .use(irysUploader())
   .use(keypairIdentity(keypair));
 
-  async function createNewConnection(rpcUrl: string){
-    console.log(`Connecting to Solana...🔌`)
-    const connection = await new Connection(rpcUrl)
-    console.log(`Connection to Solana established🔌✅`)
-    return connection;
-  }
+async function createNewConnection(rpcUrl: string){
+  console.log(`Connecting to Solana...🔌`)
+  const connection = await new Connection(rpcUrl)
+  console.log(`Connection to Solana established🔌✅`)
+  return connection;
+}
 
 async function getFeeInLamports(): Promise<number> {
   try {
@@ -85,7 +135,7 @@ async function getFeeInLamports(): Promise<number> {
     const solPrice = data.solana.usd;
 
     if (solPrice && typeof solPrice === 'number' && solPrice > 0) {
-      const solAmount = 2 / solPrice; //target fee $5
+      const solAmount = 5 / solPrice; //target fee $5
       const lamports = Math.round(solAmount * LAMPORTS_PER_SOL);
       console.log(`Dynamic fee: ${lamports} lamports (${solAmount.toFixed(4)} SOL)`);
       return lamports;
@@ -95,7 +145,7 @@ async function getFeeInLamports(): Promise<number> {
   } catch (error) {
     console.error('Error fetching dynamic fee, using fallback:', error);
     const fallbackLamports = Math.round(0.03 * LAMPORTS_PER_SOL);
-    console.log(`Fallback fee: ${fallbackLamports} lamports (0.03 SOL)`);
+    console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
     return fallbackLamports;
   }
 }
@@ -192,7 +242,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
         }
 
         const CONFIG: NFTConfig = {
-            uploadPath: '../image/',
+            uploadPath: './image/',
             imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
@@ -349,8 +399,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-//let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start on devnet
-let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -388,15 +437,15 @@ app.get('/get_action', async (req, res) => {
         actions: [
           {
             "label": choiceOne,
-            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceOne)}`
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
           },
           {
             "label": choiceTwo,
-            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceTwo)}`
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
           },
           {
             "label": choiceThree,
-            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceThree)}`
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
           }
         ]
       }
@@ -442,6 +491,25 @@ app.post('/post_action', async (req: Request, res: Response) => {
     }
 
     const connection = await createNewConnection(QUICKNODE_RPC);
+
+    // Derive PDA
+    const [PDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("gamebook"), user_account.toBuffer()],
+      PROGRAM_ID,
+    );
+
+    // Check if PDA already exists
+    const pdaInfo = await connection.getAccountInfo(PDA);
+    if (!pdaInfo) {
+      // PDA doesn't exist, create it
+      console.log("Creating PDA for user...");
+      const program = await initializeProgram(connection)
+      const pda_account_address = await createPda(program, user_account, payerKeypair);
+      console.log(`PDA account for user created at ${pda_account_address}`);
+    } else {
+      console.log("PDA already exists for this user");
+    }
+
     const {blockhash} = await connection.getLatestBlockhash();
     console.log(`Latest blockhash: ${blockhash}`)
 
@@ -457,9 +525,8 @@ app.post('/post_action', async (req: Request, res: Response) => {
         lamports: mintingFee,
       })
     );
-
-    // Adding memo
     const memo = (Math.floor(Math.random() * 100000)).toString();
+    // Adding memo
     transaction.add(
       new TransactionInstruction({
         keys: [],
@@ -483,10 +550,8 @@ app.post('/post_action', async (req: Request, res: Response) => {
     });
 
     res.status(200).json(payload);
-    
-    if (payload){
-      processPostTransaction(description, playerChoice, connection, user_account, memo)
-    }
+
+    processPostTransaction(description, playerChoice, connection, user_account, memo, PDA)
 
   } catch (error) {
     console.error('An error occurred:', error);
@@ -539,7 +604,7 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
   return null;
 }
 
-async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string) {
+async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string, pda: PublicKey) {
 
   const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
@@ -570,6 +635,8 @@ async function processPostTransaction(description: string, playerChoice: string,
       const assetURL = uriConfig.imageURI;
       console.log("Asset created with address:", newAssetAddress);
       console.log("Asset URL:", assetURL);
+
+      await transferNFTToPDA(new PublicKey(newAssetAddress), pda);
   
       fs.unlink(imagePath, (err) => {
         if (err) {
@@ -583,7 +650,7 @@ async function processPostTransaction(description: string, playerChoice: string,
       console.log(seeAsset);
   
       // Update the global assetAddress with the new asset address
-      assetAddress = newAssetAddress;
+      assetAddress = pda.toString();
       console.log("Global assetAddress updated to:", assetAddress);
   
       console.log("Process completed successfully!");
@@ -596,13 +663,26 @@ async function processPostTransaction(description: string, playerChoice: string,
   }
 }
 
-// The port the express app will listen on
-const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
+async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
+  try {
+    const result = await transferV1(umi, {
+      asset: publicKey(newAssetAddress),
+      newOwner: publicKey(pdaAddress)
+    }).sendAndConfirm(umi);
 
-// Start prod server
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on http://0.0.0.0:${port}`);
-  console.log(`Test your blinks https://gamebook-m532.onrender.com/get_action \n at https://www.dial.to/`)
+    console.log(`NFT transferred to PDA. Transaction signature: ${result.signature}`);
+    return result.signature;
+  } catch (error) {
+    console.error('Error transferring NFT to PDA:', error);
+    throw error;
+  }
+}
+
+// Initialize port and start dev server
+const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
+app.listen(port, () => {
+  console.log(`Listening at http://localhost:${port}/`);
+  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
 });
 
 export default app;

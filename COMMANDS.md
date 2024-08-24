@@ -9,6 +9,7 @@
 - solana-keygen grind --starts-with <PREFIX>:1
 - solana-test-validator --reset
 - solana program close <PROGRAM_ID> --bypass-warning
+- anchor idl init -f ./link/to/idl.json <PROGRAM_ID>
 
 ## Deploying PDA checklist
 
