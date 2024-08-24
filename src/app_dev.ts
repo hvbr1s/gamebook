@@ -66,36 +66,46 @@ const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey
 const payerKeypair = Keypair.fromSecretKey(secretKey);
 
 // Initialize program object
-async function initializeProgram(): Promise<Program<Idl>> {
-  const connection = await createNewConnection(QUICKNODE_RPC);
+async function initializeProgram(connection): Promise<Program<Idl>> {
   const wallet = new Wallet(payerKeypair);
   const provider = new AnchorProvider(connection, wallet, {});
   setProvider(provider);
-
-  return new Program(idl as Idl, provider);
+  const program = new Program(idl as Idl, provider);
+  return program;
 }
-const PROGRAM = initializeProgram()
-const PROGRAM_ID = new PublicKey('3rYZg5TUpYYnvtVgbPhuMzdfb2hCGyxokD4veAanrkHf');
+
+const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
 
 
-async function createPda(PROGRAM, pda: PublicKey, user_account: PublicKey, payer: Keypair): Promise<string> {
+async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair): Promise<string> {
   try {
+
+    console.log(`Creating PDA for user: ${user_account.toString()}`);
+
+    // Derive the PDA
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("gamebook"), user_account.toBuffer()],
+      PROGRAM.programId
+    );
+
     const tx = await PROGRAM.methods
-      .initialize()
-      .accounts({
-        user: user_account,
-        pdaAccount: pda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([payer])
-      .rpc();
+    .initialize()
+    .accounts({
+      user: user_account,
+      payer: payer.publicKey,
+      pdaAccount: pda,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([payer])
+    .rpc();
 
     console.log('Transaction signature:', tx);
     console.log('PDA initialized:', pda.toString());
     
     return pda.toString();
+
   } catch (error) {
-    console.error('Error initializing PDA:', error);
+    console.error('Error in createPda:', error);
     throw error;
   }
 }
@@ -492,7 +502,8 @@ app.post('/post_action', async (req: Request, res: Response) => {
     if (!pdaInfo) {
       // PDA doesn't exist, create it
       console.log("Creating PDA for user...");
-      const pda_account_address = await createPda(PROGRAM, PDA, user_account, payerKeypair);
+      const program = await initializeProgram(connection)
+      const pda_account_address = await createPda(program, user_account, payerKeypair);
       console.log(`PDA account for user created at ${pda_account_address}`);
     } else {
       console.log("PDA already exists for this user");
@@ -509,7 +520,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
-        toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+        toPubkey: MINT,
         lamports: mintingFee,
       })
     );
