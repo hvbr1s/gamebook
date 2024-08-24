@@ -108,7 +108,6 @@ async function createPda(PROGRAM, pda: PublicKey, user_account: PublicKey, payer
   }
 }
 
-
 // Initialize UMI instance with wallet
 const umi = newUMI
   .use(mplCore())
@@ -423,7 +422,7 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start on devnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -544,7 +543,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: user_account,
-        toPubkey: new PublicKey('GBWKj4a6Yo18U4ZXNHm5VRe6JUHCvzm5UzaargeZRc9Z'),
+        toPubkey: MINT,
         lamports: mintingFee,
       })
     );
