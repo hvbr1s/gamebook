@@ -25,9 +25,7 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        // set the seeds to derive the PDA
         seeds = [b"gamebook", user.key().as_ref()],
-        // use the canonical bump
         bump,
         payer = payer,
         space = 8 + DataAccount::INIT_SPACE
