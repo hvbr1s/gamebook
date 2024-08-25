@@ -33,7 +33,8 @@ import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/an
 import idl from "../pda/pda_account.json";
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
-import { mplCore } from '@metaplex-foundation/mpl-core';
+import { publicKey } from '@metaplex-foundation/umi';
+import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
@@ -364,7 +365,6 @@ async function createAsset(CONFIG: UriConfig): Promise<string> {
       uri: CONFIG.imageURI,
     }).sendAndConfirm(umi);
 
-    console.log(`Asset created with signature: ${result.signature}`);
     console.log(`Asset address: ${assetSigner.publicKey}`);
 
     return assetSigner.publicKey.toString();
@@ -550,7 +550,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     res.status(200).json(payload);
 
-    processPostTransaction(description, playerChoice, connection, user_account, memo)
+    processPostTransaction(description, playerChoice, connection, user_account, memo, PDA)
 
   } catch (error) {
     console.error('An error occurred:', error);
@@ -603,7 +603,7 @@ async function findTransactionWithMemo(connection: Connection, userAccount: Publ
   return null;
 }
 
-async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string) {
+async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string, pda: PublicKey) {
 
   const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
 
@@ -614,7 +614,6 @@ async function processPostTransaction(description: string, playerChoice: string,
       const choiceConsequence = await consequence(description, playerChoice);
       console.log(choiceConsequence);
       const continueStory = `${onceUponATime}\n\n${choiceConsequence}`;
-      console.log(`Story with consequence-> ${continueStory}`)
   
       console.log("Defining config for the new scene...");
       const CONFIG = await defineConfig(continueStory, choiceConsequence);
@@ -632,8 +631,14 @@ async function processPostTransaction(description: string, playerChoice: string,
       const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
       const newAssetAddress = await createAsset(uriConfig);
       const assetURL = uriConfig.imageURI;
-      console.log("Asset created with address:", newAssetAddress);
       console.log("Asset URL:", assetURL);
+
+      // Update the global assetAddress with the new asset address
+      assetAddress = newAssetAddress;
+      console.log("Global assetAddress updated to:", assetAddress);
+
+      // Transfer asset to PDA
+      await transferNFTToPDA(new PublicKey(newAssetAddress), pda);
   
       fs.unlink(imagePath, (err) => {
         if (err) {
@@ -646,10 +651,6 @@ async function processPostTransaction(description: string, playerChoice: string,
       const seeAsset = await goFetch(newAssetAddress);
       console.log(seeAsset);
   
-      // Update the global assetAddress with the new asset address
-      assetAddress = newAssetAddress;
-      console.log("Global assetAddress updated to:", assetAddress);
-  
       console.log("Process completed successfully!");
     } catch (error) {
       console.error("An error occurred in the post-transaction process:", error);
@@ -657,6 +658,21 @@ async function processPostTransaction(description: string, playerChoice: string,
     }
   }else{
     console.log("Oops, couldn't find the transaction!")
+  }
+}
+
+async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
+  try {
+    const result = await transferV1(umi, {
+      asset: publicKey(newAssetAddress),
+      newOwner: publicKey(pdaAddress)
+    }).sendAndConfirm(umi);
+
+    console.log(`NFT transferred to PDA: ${pdaAddress}`);
+    return result.signature;
+  } catch (error) {
+    console.error('Error transferring NFT to PDA:', error);
+    throw error;
   }
 }
 
