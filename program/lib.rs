@@ -8,9 +8,7 @@ pub mod pda_account {
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let account_data = &mut ctx.accounts.pda_account;
-        // store the address of the `user`
         account_data.user = *ctx.accounts.user.key;
-        // store the canonical bump
         account_data.bump = ctx.bumps.pda_account;
         Ok(())
     }
