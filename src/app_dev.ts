@@ -442,6 +442,7 @@ app.get('/get_action', async (req, res) => {
     const [choiceOne, choiceTwo, choiceThree] = attributes.map(attr => attr.value);
 
     const payload: ActionGetResponse = {
+      type: 'action',
       icon: new URL(metadata.imageURI).toString(),
       label: "Continue Toly's Journey",
       title: "Toly's Infinite Adventure⚔️",
