@@ -194,6 +194,20 @@ return storyContinues
 
 async function defineConfig(storySoFar: string, choiceConsequence: string): Promise<NFTConfig> {
     try {
+        const random_num = Math.random();
+        let scene_type: string;
+
+        if (random_num < 0.3) {
+            scene_type = "combat";
+            console.log(`Let's create a ${scene_type} scene 🖼️`)
+        } else if (random_num < 0.6) {
+            scene_type = "exploration";
+            console.log(`Let's create an ${scene_type} scene 🖼️`)
+        } else if (random_num < 0.8) {
+            scene_type = "social";
+            console.log(`Let's create a ${scene_type} scene 🖼️`)
+        }
+
         const nftAttributes = await oai_client.chat.completions.create({
             messages: [
                 {
@@ -208,12 +222,12 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
 
                         Generate a JSON object for the next scene in Toly's adventure. Follow these guidelines:
 
-                        1. The "story_continues" should be a brief, engaging scene (50-100 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
+                        1. The "story_continues" should be a brief, engaging ${scene_type} scene (maximum 75 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
                         2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
                         3. Provide three distinct choices for Toly, each reflecting a different approach (6 words maximum):
                            - "logical_choice": A rational, well-thought-out option.
                            - "prudent_choice": A careful, risk-averse option.
-                           - "reckless_choice": A bold, potentially dangerous option.
+                           - "reckless_choice": A bold, potentially dangerous option or an option that starts or continue combat.
 
                         Return only the JSON object without any additional comments or text. Use the following structure:
 
@@ -265,7 +279,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     try {
       // Enhance the prompt for better image generation
       const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The protagonist wears a red metallic helmet that masks his head, body type could be male or female.
+      The protagonist holds a sword and wears a red cape and red metallic helmet that masks his head, body type could be male or female.
       The image should capture the essence of the scene without showing text or specific choices. 
       IMPORTANT: DO NOT GENERATE TEXT.
       Style: Watercolor.`;
