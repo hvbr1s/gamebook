@@ -11,6 +11,7 @@
 - solana program close <PROGRAM_ID> --bypass-warning
 - anchor idl init -f ./link/to/idl.json <PROGRAM_ID>
 - solana program extend <PROGRAM_ID> <ADDITIONAL_BYTES>
+- solana-install init <solana-version>
 
 ## Deploying PDA checklist
 
