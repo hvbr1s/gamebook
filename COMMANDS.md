@@ -12,6 +12,15 @@
 - anchor idl init -f ./link/to/idl.json <PROGRAM_ID>
 - solana program extend <PROGRAM_ID> <ADDITIONAL_BYTES>
 - solana-install init <solana-version>
+- solana-install list
+
+## Deploying Contrat without Anchor
+
+- Run `cargo build-bpf --manifest-path=./Cargo.toml`
+- Run `solana program deploy ./target/deploy/your_program.so --program-id ls ~/.config/solana/id.json`
+- Grab `program.so` files in `./target/deploy` folder.
+- Grind new key by running `solana-keygen new -o program-keypair.json`
+- Run `solana program deploy ./target/deploy/your_program.so --program-id program-keypair.json` to deploy
 
 ## Deploying PDA checklist
 
