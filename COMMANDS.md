@@ -13,6 +13,13 @@
 - solana program extend <PROGRAM_ID> <ADDITIONAL_BYTES>
 - solana-install init <solana-version>
 - solana-install list
+- cargo tree -p ahash (run to see the dependency tree)
+
+## Deploying specific version of Rust
+- Run `rustup install <version>`
+- Run `rustup default <version>` to set that version to default.
+- To see all the Rust versions installed on your system, run `rustup toolchain list`
+- To uninstall a version, run `rustup toolchain uninstall`
 
 ## Deploying Contrat without Anchor
 
@@ -20,7 +27,13 @@
 - Run `solana program deploy ./target/deploy/your_program.so --program-id ls ~/.config/solana/id.json`
 - Grab `program.so` files in `./target/deploy` folder.
 - Grind new key by running `solana-keygen new -o program-keypair.json`
+- If you're deploying multiple programs, it's important to grind a unique key for each
 - Run `solana program deploy ./target/deploy/your_program.so --program-id program-keypair.json` to deploy
+
+To deploy the program's IDL, you'll need Shank:
+
+- Install Shank by running: `cargo install --git https://github.com/metaplex-foundation/shank shank-cli`
+- Generate IDL by running: `shank idl --out-dir idl --crate-root programs/src`
 
 ## Deploying PDA checklist
 
