@@ -24,10 +24,10 @@
 ## Deploying Contrat without Anchor
 
 - Run `cargo build-bpf --manifest-path=./Cargo.toml`
-- Grind a key for this program by running `solana-keygen grind --starts-with <PREFIX>:1`
-- Run `solana program deploy ./target/deploy/your_program.so --program-id ls <key_address>.json`
+- Grind a key for this program by running `solana-keygen new -o program-keypair-<program_name>.json`
+- Run `solana program deploy ./target/deploy/your_program.so --program-id ls program-keypair-<program_name>.json`
 - Grab second `program.so` files in `./target/deploy` folder.
-- Grind new key by running `solana-keygen new -o program-keypair.json`
+- Grind a key for that program by running `solana-keygen new -o program-keypair-<program_name>.json`
 - Repeat for each program that needs to be deployed. If you're deploying multiple programs, it's important to grind a unique key for each
 - Run `solana program deploy ./target/deploy/your_program.so --program-id program-keypair.json` to deploy
 
