@@ -111,13 +111,13 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
   }
 }
 
-
 // Initialize UMI instance with wallet
 const umi = newUMI
   .use(mplCore())
   .use(irysUploader())
   .use(keypairIdentity(keypair));
 
+// Connect function
 async function createNewConnection(rpcUrl: string){
   console.log(`Connecting to Solana...🔌`)
   const connection = await new Connection(rpcUrl)
@@ -154,7 +154,7 @@ async function getFeeInLamports(): Promise<number> {
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 const gpt_llm = "gpt-4o-2024-08-06"
 
-  interface NFTConfig {
+interface NFTConfig {
     uploadPath: string;
     imgFileName: string;
     imgType: string;
@@ -449,29 +449,17 @@ app.get('/get_action', async (req, res) => {
       description: description,
       links: {
         actions: [
-          // {
-          //   "label": choiceOne,
-          //   "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
-          // },
-          // {
-          //   "label": choiceTwo,
-          //   "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
-          // },
-          // {
-          //   "label": choiceThree,
-          //   "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
-          // }
           {
             "label": choiceOne,
-            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceOne)}`
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
           },
           {
             "label": choiceTwo,
-            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceTwo)}`
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
           },
           {
             "label": choiceThree,
-            "href": `https://gamebook-m532.onrender.com/post_action?choice=${encodeURIComponent(choiceThree)}`
+            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
           }
         ]
       }
@@ -703,22 +691,11 @@ async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKe
   }
 }
 
-// // Initialize port and start dev server
-// const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
-// app.listen(port, () => {
-//   console.log(`Listening at http://localhost:${port}/`);
-//   console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
-// });
-
-// export default app;
-
-// The port the express app will listen on
+// Initialize port and start dev server
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
-
-// Start prod server
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on http://0.0.0.0:${port}`);
-  console.log(`Test your blinks https://gamebook-m532.onrender.com/get_action \n at https://www.dial.to/`)
+app.listen(port, () => {
+  console.log(`Listening at http://localhost:${port}/`);
+  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
 });
 
 export default app;
