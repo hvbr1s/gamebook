@@ -68,12 +68,12 @@ const umi = newUMI
   .use(irysUploader())
   .use(keypairIdentity(keypair));
 
-  async function createNewConnection(rpcUrl: string){
-    console.log(`Connecting to Solana...🔌`)
-    const connection = await new Connection(rpcUrl)
-    console.log(`Connection to Solana established🔌✅`)
-    return connection;
-  }
+async function createNewConnection(rpcUrl: string){
+  console.log(`Connecting to Solana...🔌`)
+  const connection = await new Connection(rpcUrl)
+  console.log(`Connection to Solana established🔌✅`)
+  return connection;
+}
 
 async function getFeeInLamports(): Promise<number> {
   try {
@@ -116,6 +116,7 @@ const gpt_llm = "gpt-4o-2024-08-06"
 async function consequence(description,playerChoice): Promise<string>{
 
   const generateStory = await oai_client.chat.completions.create({
+    
     messages: [
         {
             role: "system",
@@ -137,9 +138,9 @@ async function consequence(description,playerChoice): Promise<string>{
     temperature: 0.7,
 });
 
-const storyContinues = generateStory.choices[0].message.content;
-
-return storyContinues
+  const storyContinues = generateStory.choices[0].message.content;
+  
+  return storyContinues
 }
 
 async function defineConfig(storySoFar: string, choiceConsequence: string): Promise<NFTConfig> {
