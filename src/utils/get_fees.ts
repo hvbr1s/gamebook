@@ -11,7 +11,7 @@ export async function getFeeInLamports(): Promise<number> {
       const solPrice = data.solana.usd;
   
       if (solPrice && typeof solPrice === 'number' && solPrice > 0) {
-        const solAmount = 5 / solPrice; //target fee $5
+        const solAmount = 0.1 / solPrice; //target fee $5
         const lamports = Math.round(solAmount * LAMPORTS_PER_SOL);
         console.log(`Dynamic fee: ${lamports} lamports (${solAmount.toFixed(4)} SOL)`);
         return lamports;
@@ -20,7 +20,7 @@ export async function getFeeInLamports(): Promise<number> {
       }
     } catch (error) {
       console.error('Error fetching dynamic fee, using fallback:', error);
-      const fallbackLamports = Math.round(0.03 * LAMPORTS_PER_SOL);
+      const fallbackLamports = Math.round(0.0003 * LAMPORTS_PER_SOL);
       console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
       return fallbackLamports;
     }
