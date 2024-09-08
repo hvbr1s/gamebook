@@ -6,9 +6,10 @@ import * as path from 'path';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import axios from 'axios';
-import fetch from 'node-fetch';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
+import { NFTConfig }  from './utils/interfaces'
+import { getFeeInLamports } from './utils/get_fees'
 // Solana-related imports
 import { 
   ACTIONS_CORS_HEADERS, 
@@ -33,7 +34,7 @@ import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/an
 import idl from "../pda/pda_account.json";
 // Metaplex-related imports
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
-import { publicKey } from '@metaplex-foundation/umi';
+import { publicKey, createGenericFile } from '@metaplex-foundation/umi';
 import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
@@ -42,8 +43,9 @@ import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
 /// Load environment variable
 dotenv.config();
 
-// Initialize Mint wallet
+// Initialize Mint wallet and Program ID
 const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
+const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
 
 // Initiate sender wallet, treasury wallet and connection to Solana
 const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
@@ -63,8 +65,14 @@ function getKeypairFromEnvironment(): Uint8Array {
   return new Uint8Array(privateKeyArray);
 }
 const secretKey = getKeypairFromEnvironment()
-const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
 const payerKeypair = Keypair.fromSecretKey(secretKey);
+
+// Initialize UMI instance with wallet
+const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
+const umi = newUMI
+  .use(mplCore())
+  .use(irysUploader())
+  .use(keypairIdentity(keypair));
 
 // Initialize program object
 async function initializeProgram(connection): Promise<Program<Idl>> {
@@ -74,9 +82,6 @@ async function initializeProgram(connection): Promise<Program<Idl>> {
   const program = new Program(idl as Idl, provider);
   return program;
 }
-
-const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
-
 
 async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair): Promise<string> {
   try {
@@ -111,12 +116,6 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
   }
 }
 
-// Initialize UMI instance with wallet
-const umi = newUMI
-  .use(mplCore())
-  .use(irysUploader())
-  .use(keypairIdentity(keypair));
-
 // Connect function
 async function createNewConnection(rpcUrl: string){
   console.log(`Connecting to Solana...🔌`)
@@ -125,43 +124,9 @@ async function createNewConnection(rpcUrl: string){
   return connection;
 }
 
-async function getFeeInLamports(): Promise<number> {
-  try {
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    const solPrice = data.solana.usd;
-
-    if (solPrice && typeof solPrice === 'number' && solPrice > 0) {
-      const solAmount = 5 / solPrice; //target fee $5
-      const lamports = Math.round(solAmount * LAMPORTS_PER_SOL);
-      console.log(`Dynamic fee: ${lamports} lamports (${solAmount.toFixed(4)} SOL)`);
-      return lamports;
-    } else {
-      throw new Error('Invalid SOL price data');
-    }
-  } catch (error) {
-    console.error('Error fetching dynamic fee, using fallback:', error);
-    const fallbackLamports = Math.round(0.03 * LAMPORTS_PER_SOL);
-    console.log(`Fallback fee: ${fallbackLamports} lamports (0.05 SOL)`);
-    return fallbackLamports;
-  }
-}
-
 ///// AI LOGIC
 const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
 const gpt_llm = "gpt-4o-2024-08-06"
-
-interface NFTConfig {
-    uploadPath: string;
-    imgFileName: string;
-    imgType: string;
-    imgName: string;
-    description: string;
-    attributes: Array<{trait_type: string, value: string}>;
-}
 
 async function consequence(description,playerChoice): Promise<string>{
 
@@ -261,11 +226,21 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
             description: `${choiceConsequence} ${llmResponse.story_continues}`,
+            image: '',
             attributes: [
                 {trait_type: 'Logical Choice', value: llmResponse.logical_choice},
                 {trait_type: 'Prudent Choice', value: llmResponse.prudent_choice},
                 {trait_type: 'Reckless Choice', value: llmResponse.reckless_choice}
-            ]
+            ],
+            properties: {
+              files: [
+                {
+                  uri: '', // This will be set after the image is uploaded
+                  type: 'image/png',
+                },
+              ],
+              category: 'image',
+            },
         };
 
         return CONFIG;
@@ -321,72 +296,86 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
     }
   }
 
-  interface UriConfig extends NFTConfig {
-    imageURI: string;
+async function updateConfigWithImageUri(config: NFTConfig, imageUri: string): Promise<NFTConfig> {
+  return {
+    ...config,
+    image: imageUri,
+    properties: {
+      ...config.properties,
+      files: [
+        {
+          uri: imageUri,
+          type: config.imgType,
+        },
+      ],
+    },
+  };
 }
-  
 
 async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> {
   try {
     // Read the image file
     const imageBuffer = await promise.readFile(imagePath);
-
+  
     // Create a GenericFile object
-    const imageFile: GenericFile = {
-      buffer: imageBuffer,
-      fileName: CONFIG.imgFileName,
-      displayName: CONFIG.imgName,
-      uniqueName: CONFIG.imgFileName,
-      contentType: CONFIG.imgType,
-      extension: 'png',
-      tags: [],
-    };
-
+    const umiImageFile = createGenericFile(
+      imageBuffer,
+      CONFIG.imgFileName,
+      {
+        displayName: CONFIG.imgName,
+        uniqueName: CONFIG.imgFileName,
+        contentType: CONFIG.imgType,
+        extension: CONFIG.imgFileName.split('.').pop() || 'png',
+        tags: [{ name: 'Content-Type', value: CONFIG.imgType }],
+      }
+    );
+  
     // Upload the image and get its URI
-    const [imageUri] = await umi.uploader.upload([imageFile]);
+    const [imageUri] = await umi.uploader.upload([umiImageFile]);
     if (!imageUri) {
       throw new Error("Failed to upload image");
     }
-
+    console.log('Image uploaded, URI:', imageUri);
+  
     // Add the image URI to the config
-    const configWithUri: UriConfig = {
-      ...CONFIG,
-      imageURI: imageUri,
-    };
-
+    const configWithUri = await updateConfigWithImageUri(CONFIG, imageUri)
+    console.log(configWithUri)
+  
     // Upload the JSON metadata
     const metadataUri = await umi.uploader.uploadJson(configWithUri);
     if (!metadataUri) {
       throw new Error("Failed to upload metadata");
     }
-
+  
     return metadataUri;
+  
   } catch (error) {
     console.error("Error in createURI:", error);
     throw error;
   }
-}
-
-async function createAsset(CONFIG: UriConfig): Promise<string> {
-  try {
-    // Generate a new signer for the asset
-    const assetSigner = generateSigner(umi);
-
-    // Create the asset
-    const result = await create(umi, {
-      asset: assetSigner,
-      name: CONFIG.imgName,
-      uri: CONFIG.imageURI,
-    }).sendAndConfirm(umi);
-
-    console.log(`Asset address: ${assetSigner.publicKey}`);
-
-    return assetSigner.publicKey.toString();
-  } catch (error) {
-    console.error("Error in createAsset:", error);
-    throw error;
   }
-}
+
+  async function createAsset(CONFIG: NFTConfig, uri: string): Promise<string> {
+    try {
+      // Generate a new signer for the asset
+      const assetSigner = generateSigner(umi);
+      console.log(`Creating asset with metadata: ${uri}`)
+  
+      // Create the asset
+      const result = await create(umi, {
+        asset: assetSigner,
+        name: CONFIG.imgName,
+        uri: uri,
+      }).sendAndConfirm(umi);
+  
+      console.log(`Asset address: ${assetSigner.publicKey}`);
+  
+      return assetSigner.publicKey.toString();
+    } catch (error) {
+      console.error("Error in createAsset:", error);
+      throw error;
+    }
+  }
 
 async function goFetch(assetAddress) {
   try {
@@ -638,15 +627,12 @@ async function processPostTransaction(description: string, playerChoice: string,
       const imagePath = await createImage(CONFIG);
       console.log("Image created at:", imagePath);
   
-      console.log("Creating URI...");
+      console.log("Creating URI 🔗 ...");
       const uri = await createURI(imagePath, CONFIG);
       console.log("Metadata URI created:", uri);
   
-      console.log("Creating asset...");
-      const uriConfig: UriConfig = { ...CONFIG, imageURI: uri };
-      const newAssetAddress = await createAsset(uriConfig);
-      const assetURL = uriConfig.imageURI;
-      console.log("Asset URL:", assetURL);
+      console.log("Creating asset ⛏️ ...");
+      const newAssetAddress = await createAsset(CONFIG, uri);
 
       // Update the global assetAddress with the new asset address
       assetAddress = newAssetAddress;
