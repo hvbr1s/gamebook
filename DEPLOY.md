@@ -1,4 +1,4 @@
-# How to Deploy a Solana Program on Localnet with Anchor
+# How to Deploy a Solana Program on Localnet with Anchor ⚓
 
 ## Installed Prerequisites
 
