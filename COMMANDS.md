@@ -14,6 +14,7 @@
 - solana-install init <solana-version>
 - solana-install list
 - cargo tree -p ahash (run to see the dependency tree)
+- cargo build-sbf --version
 
 ## Deploying specific version of Rust
 - Run `rustup install <version>`
