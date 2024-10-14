@@ -1,8 +1,6 @@
-// Node.js built-in modules
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
 import * as path from 'path';
-// Third-party modules
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import axios from 'axios';
@@ -236,7 +234,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
             properties: {
               files: [
                 {
-                  uri: '', // This will be set after the image is uploaded
+                  uri: '',
                   type: 'image/png',
                 },
               ],
