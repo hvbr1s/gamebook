@@ -36,6 +36,7 @@ import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
+import { option } from '@metaplex-foundation/umi/serializers';
 
 /// Load environment variable
 dotenv.config();
@@ -46,8 +47,8 @@ const PROGRAM_ID = new PublicKey('BLEa4UDmpSn7URDAmmWXhg1KpTKt43Rp7bTeUgo7X3Bz')
 let CHAPTER_COUNT: number = 1;
 
 // Initiate RPC connection
-//const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
+//const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)
@@ -395,8 +396,8 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
-//let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
+//let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
+let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -635,7 +636,9 @@ async function processPostTransaction(description: string, playerChoice: string,
 
       // Update the global assetAddress with the new asset address
       assetAddress = newAssetAddress;
+      CHAPTER_COUNT += 1;
       console.log("Global assetAddress updated to:", assetAddress);
+      console.log("Chapter count updated to:", CHAPTER_COUNT);
 
       // Transfer asset to PDA
       await transferNFTToPDA(new PublicKey(newAssetAddress), pda);
@@ -663,12 +666,15 @@ async function processPostTransaction(description: string, playerChoice: string,
 
 async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
   try {
+
+    await new Promise(resolve => setTimeout(resolve, 4000));   
+
     const result = await transferV1(umi, {
       asset: publicKey(newAssetAddress),
       newOwner: publicKey(pdaAddress)
     }).sendAndConfirm(umi);
 
-    console.log(`NFT transferred to PDA: ${pdaAddress}`);
+    console.log(`NFT transferred to PDA: ${pdaAddress}\nSignature: ${result.signature}`);
     return result.signature;
   } catch (error) {
     console.error('Error transferring NFT to PDA:', error);
