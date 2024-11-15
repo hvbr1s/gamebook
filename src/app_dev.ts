@@ -36,18 +36,19 @@ import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
+import { option } from '@metaplex-foundation/umi/serializers';
 
 /// Load environment variable
 dotenv.config();
 
 // Initialize Mint wallet and Program ID
 const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
-const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
+const PROGRAM_ID = new PublicKey('BLEa4UDmpSn7URDAmmWXhg1KpTKt43Rp7bTeUgo7X3Bz');
 let CHAPTER_COUNT: number = 1;
 
 // Initiate RPC connection
-//const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
+//const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)
@@ -87,8 +88,8 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
 
     console.log(`Creating PDA for user: ${user_account.toString()}`);
 
-    const new_increment =  chapter + 1
-    console.log(`Toly's story is progressing to Chapter ${new_increment} 📖🧙‍♂️`)
+    const chapter_increment =  chapter + 1
+    console.log(`Toly's story is progressing to Chapter ${chapter_increment} 📖🧙‍♂️`)
 
     // Derive the PDA
     const [pda] = PublicKey.findProgramAddressSync(
@@ -97,11 +98,10 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
     );
 
     const tx = await PROGRAM.methods
-    .initialize()
+    .initializePda(chapter_increment)
     .accounts({
       user: user_account,
       payer: payer.publicKey,
-      chapter: new_increment, 
       pdaAccount: pda,
       systemProgram: SystemProgram.programId,
     })
@@ -636,7 +636,9 @@ async function processPostTransaction(description: string, playerChoice: string,
 
       // Update the global assetAddress with the new asset address
       assetAddress = newAssetAddress;
+      CHAPTER_COUNT += 1;
       console.log("Global assetAddress updated to:", assetAddress);
+      console.log("Chapter count updated to:", CHAPTER_COUNT);
 
       // Transfer asset to PDA
       await transferNFTToPDA(new PublicKey(newAssetAddress), pda);
@@ -664,12 +666,15 @@ async function processPostTransaction(description: string, playerChoice: string,
 
 async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
   try {
+
+    await new Promise(resolve => setTimeout(resolve, 4000));   
+
     const result = await transferV1(umi, {
       asset: publicKey(newAssetAddress),
       newOwner: publicKey(pdaAddress)
     }).sendAndConfirm(umi);
 
-    console.log(`NFT transferred to PDA: ${pdaAddress}`);
+    console.log(`NFT transferred to PDA: ${pdaAddress}\nSignature: ${result.signature}`);
     return result.signature;
   } catch (error) {
     console.error('Error transferring NFT to PDA:', error);
