@@ -42,7 +42,7 @@ dotenv.config();
 
 // Initialize Mint wallet and Program ID
 const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
-const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
+const PROGRAM_ID = new PublicKey('BLEa4UDmpSn7URDAmmWXhg1KpTKt43Rp7bTeUgo7X3Bz');
 let CHAPTER_COUNT: number = 1;
 
 // Initiate RPC connection
@@ -87,8 +87,8 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
 
     console.log(`Creating PDA for user: ${user_account.toString()}`);
 
-    const new_increment =  chapter + 1
-    console.log(`Toly's story is progressing to Chapter ${new_increment} 📖🧙‍♂️`)
+    const chapter_increment =  chapter + 1
+    console.log(`Toly's story is progressing to Chapter ${chapter_increment} 📖🧙‍♂️`)
 
     // Derive the PDA
     const [pda] = PublicKey.findProgramAddressSync(
@@ -97,11 +97,10 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
     );
 
     const tx = await PROGRAM.methods
-    .initialize()
+    .initializePda(chapter_increment)
     .accounts({
       user: user_account,
       payer: payer.publicKey,
-      chapter: new_increment, 
       pdaAccount: pda,
       systemProgram: SystemProgram.programId,
     })
@@ -396,8 +395,8 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-//let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
-let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
+//let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
