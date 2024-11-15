@@ -7,8 +7,8 @@ import axios from 'axios';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import { NFTConfig }  from './utils/interfaces'
+import { createNewConnection } from './utils/createSolanaConnection'
 import { getFeeInLamports } from './utils/get_fees'
-// Solana-related imports
 import { 
   ACTIONS_CORS_HEADERS, 
   ActionGetResponse, 
@@ -29,8 +29,7 @@ import {
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/anchor";
-import idl from "../pda/pda_account.json";
-// Metaplex-related imports
+import idl from "../backend/target/idl/pda_account.json";
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { publicKey, createGenericFile } from '@metaplex-foundation/umi';
 import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
@@ -44,6 +43,7 @@ dotenv.config();
 // Initialize Mint wallet and Program ID
 const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
 const PROGRAM_ID = new PublicKey('EwjMrKendd6q8tVPXpZWhXWm6ftwca6GWjuRykRBk9N8');
+let CHAPTER_COUNT: number = 1;
 
 // Initiate RPC connection
 //const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
@@ -82,14 +82,17 @@ async function initializeProgram(connection): Promise<Program<Idl>> {
   return program;
 }
 
-async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair): Promise<string> {
+async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair, chapter: number): Promise<string> {
   try {
 
     console.log(`Creating PDA for user: ${user_account.toString()}`);
 
+    const new_increment =  chapter + 1
+    console.log(`Toly's story is progressing to Chapter ${new_increment} 📖🧙‍♂️`)
+
     // Derive the PDA
     const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("gamebook"), user_account.toBuffer()],
+      [Buffer.from("gamebook_toly"), user_account.toBuffer()],
       PROGRAM.programId
     );
 
@@ -98,6 +101,7 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
     .accounts({
       user: user_account,
       payer: payer.publicKey,
+      chapter: new_increment, 
       pdaAccount: pda,
       systemProgram: SystemProgram.programId,
     })
@@ -113,14 +117,6 @@ async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypa
     console.error('Error in createPda:', error);
     throw error;
   }
-}
-
-// Connect function
-async function createNewConnection(rpcUrl: string){
-  console.log(`Connecting to Solana...🔌`)
-  const connection = await new Connection(rpcUrl)
-  console.log(`Connection to Solana established🔌✅`)
-  return connection;
 }
 
 ///// AI LOGIC
@@ -361,7 +357,7 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
       console.log(`Creating asset with metadata: ${uri}`)
   
       // Create the asset
-      const result = await create(umi, {
+      await create(umi, {
         asset: assetSigner,
         name: CONFIG.imgName,
         uri: uri,
@@ -400,8 +396,8 @@ async function goFetch(assetAddress) {
 }
 
 // Declaring global assetAddress
-let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
-//let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
+//let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
+let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -439,14 +435,17 @@ app.get('/get_action', async (req, res) => {
       links: {
         actions: [
           {
+            "type": "transaction",
             "label": choiceOne,
             "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
           },
           {
+            "type": "transaction",
             "label": choiceTwo,
             "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
           },
           {
+            "type": "transaction",
             "label": choiceThree,
             "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
           }
@@ -467,7 +466,7 @@ app.options('/post_action', (req: Request, res: Response) => {
 
 app.post('/post_action', async (req: Request, res: Response) => {
   try {
-    // Fetch the asset using the provided UMI instance
+    
     if (!assetAddress) {
       throw new Error('Asset address is not defined');
     }
@@ -497,7 +496,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     // Derive PDA
     const [PDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("gamebook"), user_account.toBuffer()],
+      [Buffer.from("gamebook_toly"), user_account.toBuffer()],
       PROGRAM_ID,
     );
 
@@ -507,7 +506,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       // PDA doesn't exist, create it
       console.log("Creating PDA for user...");
       const program = await initializeProgram(connection)
-      const pda_account_address = await createPda(program, user_account, payerKeypair);
+      const pda_account_address = await createPda(program, user_account, payerKeypair, CHAPTER_COUNT);
       console.log(`PDA account for user created at ${pda_account_address}`);
     } else {
       console.log("PDA already exists for this user");
@@ -547,6 +546,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
 
     const payload: ActionPostResponse = await createPostResponse({
       fields: {
+        type: 'transaction',
         transaction: transaction,
         message: "The adventure continues! Refresh this page in a minute to see what happens next!",
       },
