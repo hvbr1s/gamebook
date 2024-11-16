@@ -158,14 +158,17 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
         const random_num = Math.random();
         let scene_type: string;
 
-        if (random_num < 0.3) {
+        if (random_num < 0.2) {
             scene_type = "combat";
             console.log(`Let's create a ${scene_type} scene 🖼️`)
-        } else if (random_num < 0.6) {
-            scene_type = "exploration";
+        } else if (random_num < 0.4) {
+            scene_type = "ominous";
             console.log(`Let's create an ${scene_type} scene 🖼️`)
+        } else if (random_num < 0.6) {
+            scene_type = "bizarre";
+            console.log(`Let's create a ${scene_type} scene 🖼️`)
         } else if (random_num < 0.8) {
-            scene_type = "social";
+            scene_type = "heroic";
             console.log(`Let's create a ${scene_type} scene 🖼️`)
         }
 
@@ -183,7 +186,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
 
                         Generate a JSON object for the next scene in Toly's adventure. Follow these guidelines:
 
-                        1. The "story_continues" should be a brief, engaging ${scene_type} scene (maximum 75 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
+                        1. The "story_continues" should be a brief ${scene_type} scene (maximum 50 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
                         2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
                         3. Provide three distinct choices for Toly, each reflecting a different approach (6 words maximum):
                            - "logical_choice": A rational, well-thought-out option.
@@ -523,7 +526,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       fields: {
         type: 'transaction',
         transaction: transaction,
-        message: "The adventure continues! Refresh this page in a minute to see what happens next!",
+        message: "The adventure continues! WAIT 2 MINUTES and refresh the page to see what happens next!",
       },
     });
 
