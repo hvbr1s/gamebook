@@ -4,7 +4,7 @@ export interface NFTConfig {
     imgType: string;
     imgName: string;
     description: string;
-    image: string;
+    imageURI: string;
     attributes: Array<{
       trait_type: string;
       value: string;

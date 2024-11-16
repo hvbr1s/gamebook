@@ -70,7 +70,9 @@ const payerKeypair = Keypair.fromSecretKey(secretKey);
 const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
 const umi = newUMI
   .use(mplCore())
-  .use(irysUploader())
+  .use(irysUploader({
+    address:"https://turbo.ardrive.io"
+  }))
   .use(keypairIdentity(keypair));
 
 // Initialize program object
@@ -220,7 +222,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
             imgType: 'image/png',
             imgName: llmResponse.scene_name,
             description: `${choiceConsequence} ${llmResponse.story_continues}`,
-            image: '',
+            imageURI: '',
             attributes: [
                 {trait_type: 'Logical Choice', value: llmResponse.logical_choice},
                 {trait_type: 'Prudent Choice', value: llmResponse.prudent_choice},
@@ -281,7 +283,6 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
   
       // Write the image data to a file
       await fs.promises.writeFile(imagePath, imageResponse.data);
-      console.log(imagePath)
   
       return imagePath;
     } catch (error) {
@@ -293,7 +294,7 @@ async function createImage(CONFIG: NFTConfig): Promise<string> {
 async function updateConfigWithImageUri(config: NFTConfig, imageUri: string): Promise<NFTConfig> {
   return {
     ...config,
-    image: imageUri,
+    imageURI: imageUri,
     properties: {
       ...config.properties,
       files: [
@@ -390,21 +391,20 @@ app.get('/get_action', async (req, res) => {
 
     // Fetch the asset using the provided UMI instance
     const asset = await fetchAsset(umi, assetAddress);
-
-    // Get the asset's URI
-    const assetUri = asset.uri;
+    console.log(`Fetching asset -> ${asset.uri}`)
 
     // Fetch the metadata from the asset's URI
-    const response = await axios.get(assetUri);
-    const metadata = response.data;
+    const metadata = await axios.get(asset.uri);
+    console.log(`Fetching asset metadata -> ${metadata.data} `)
 
     // Extract the required information from the metadata
-    const { description, attributes } = metadata;
+    const { description, attributes, imageURI } = metadata.data;;
+    console.log(`Displaying: ${imageURI}`)
     const [choiceOne, choiceTwo, choiceThree] = attributes.map(attr => attr.value);
 
     const payload: ActionGetResponse = {
       type: 'action',
-      icon: new URL(metadata.imageURI).toString(),
+      icon: imageURI,
       label: "Continue Toly's Journey",
       title: "Toly's Infinite Adventure⚔️",
       description: description,
@@ -462,7 +462,6 @@ app.post('/post_action', async (req: Request, res: Response) => {
     try {
       const body: ActionPostRequest = req.body;
       user_account = new PublicKey(body.account);
-      console.log(user_account);
     } catch (error) {
       console.error('Invalid account:', error);
       return res.status(400).json({ error: 'Invalid account' });
@@ -643,12 +642,12 @@ async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKe
     const asset = await fetchAsset(umi, newAssetAddress.toString())
 
     const result = await transferV1(umi, {
-
       asset:publicKey(asset),
       newOwner: publicKey(pdaAddress.toString()),
-    }).sendAndConfirm(umi);
+    })
+    .sendAndConfirm(umi);
 
-    console.log(`NFT transferred to PDA: ${pdaAddress}\nSignature: ${result.signature}`);
+    console.log(`NFT transferred to PDA: ${pdaAddress}`);
     return result.signature;
   } catch (error) {
     console.log('Error transferring NFT to PDA!');
