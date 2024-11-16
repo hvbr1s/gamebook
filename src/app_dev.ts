@@ -32,23 +32,22 @@ import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/an
 import idl from "../backend/target/idl/pda_account.json";
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { publicKey, createGenericFile } from '@metaplex-foundation/umi';
-import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
+import { mplCore, transferV1, update } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
-import { keypairIdentity, generateSigner, GenericFile } from '@metaplex-foundation/umi';
+import { keypairIdentity, generateSigner } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
-import { option } from '@metaplex-foundation/umi/serializers';
 
 /// Load environment variable
 dotenv.config();
 
-// Initialize Mint wallet and Program ID
+// Initialize Mint wallet, Program ID and Chapter Count
 const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
 const PROGRAM_ID = new PublicKey('BLEa4UDmpSn7URDAmmWXhg1KpTKt43Rp7bTeUgo7X3Bz');
 let CHAPTER_COUNT: number = 1;
 
 // Initiate RPC connection
-const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-//const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+//const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
+const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
 
 // Initialize UMI instance
 const newUMI = createUmi(QUICKNODE_RPC)
@@ -372,32 +371,9 @@ async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> 
     }
   }
 
-async function goFetch(assetAddress) {
-  try {
-    // Fetch the asset using the provided UMI instance
-    const asset = await fetchAsset(umi, assetAddress, {
-      skipDerivePlugins: false,
-    });
-
-    // Get the asset's URI
-    const assetLocation = asset.uri;
-
-    // Fetch the metadata from the asset's URI
-    const response = await axios.get(assetLocation);
-    
-    // Extract the imageURI from the metadata
-    const foundIt = response.data.imageURI;
-
-    return foundIt;
-  } catch (error) {
-    console.error('Error in goFetch:', error);
-    throw error;
-  }
-}
-
 // Declaring global assetAddress
-//let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
-let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
+let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
+//let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
 let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
   
 /////// APP ///////
@@ -650,10 +626,7 @@ async function processPostTransaction(description: string, playerChoice: string,
           console.log(`Local image file deleted successfully 🗑️`);
         }
       });
-  
-      const seeAsset = await goFetch(newAssetAddress);
-      console.log(seeAsset);
-  
+    
       console.log("Process completed successfully!");
     } catch (error) {
       console.error("An error occurred in the post-transaction process:", error);
@@ -667,18 +640,18 @@ async function processPostTransaction(description: string, playerChoice: string,
 async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
   try {
 
-    await new Promise(resolve => setTimeout(resolve, 4000));   
+    const asset = await fetchAsset(umi, newAssetAddress.toString())
 
     const result = await transferV1(umi, {
-      asset: publicKey(newAssetAddress),
-      newOwner: publicKey(pdaAddress)
+
+      asset:publicKey(asset),
+      newOwner: publicKey(pdaAddress.toString()),
     }).sendAndConfirm(umi);
 
     console.log(`NFT transferred to PDA: ${pdaAddress}\nSignature: ${result.signature}`);
     return result.signature;
   } catch (error) {
-    console.error('Error transferring NFT to PDA:', error);
-    throw error;
+    console.log('Error transferring NFT to PDA!');
   }
 }
 
