@@ -29,10 +29,10 @@ import {
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/anchor";
-import idl from "../backend/target/idl/pda_account.json";
+import idl from "../solana/target/idl/pda_account.json";
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { publicKey, createGenericFile } from '@metaplex-foundation/umi';
-import { mplCore, transferV1, update } from '@metaplex-foundation/mpl-core';
+import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import { keypairIdentity, generateSigner } from '@metaplex-foundation/umi';
 import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
