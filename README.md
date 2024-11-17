@@ -1,8 +1,8 @@
-# Toly's Infinite Adventure
+# Toly's NeverEnding Adventure
 
 ## Overview
 
-Toly's Infinite Adventure is a gamebook app that is currently deployed on devnet. It's a game that combines Solana Metaplex Core assets, AI, Blinks and classic pen-and-paper gamebook mechanics to create a never-ending on-chain adventure experience on Solana,
+Toly's NeverEnding Adventure is a gamebook app that is currently deployed on devnet. It's a game that combines Solana Metaplex Core assets, AI, Blinks and classic pen-and-paper gamebook mechanics to create a never-ending on-chain adventure experience on Solana,
 
 ## Demo
 
