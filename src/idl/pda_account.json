@@ -1,0 +1,118 @@
+{
+  "address": "BLEa4UDmpSn7URDAmmWXhg1KpTKt43Rp7bTeUgo7X3Bz",
+  "metadata": {
+    "name": "pda_account",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "initialize_pda",
+      "discriminator": [
+        178,
+        254,
+        136,
+        212,
+        127,
+        85,
+        171,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "user"
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  116,
+                  111,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "chapter_count",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Chapter",
+      "discriminator": [
+        70,
+        84,
+        203,
+        142,
+        134,
+        175,
+        200,
+        97
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "TooManyChapters",
+      "msg": "Too many chapters already, this story is over!"
+    }
+  ],
+  "types": [
+    {
+      "name": "Chapter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "chapter",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
