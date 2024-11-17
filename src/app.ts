@@ -167,7 +167,7 @@ async function defineConfig(storySoFar: string, choiceConsequence: string): Prom
         } else if (random_num < 0.6) {
             scene_type = "bizarre";
             console.log(`Let's create a ${scene_type} scene 🖼️`)
-        } else if (random_num < 0.8) {
+        } else if (random_num < 0.9) {
             scene_type = "heroic";
             console.log(`Let's create a ${scene_type} scene 🖼️`)
         }
@@ -409,7 +409,7 @@ app.get('/get_action', async (req, res) => {
       type: 'action',
       icon: imageURI,
       label: "Continue Toly's Journey",
-      title: "Toly's Infinite Adventure⚔️",
+      title: "Toly's NeverEnding Adventure⚔️",
       description: description,
       links: {
         actions: [
