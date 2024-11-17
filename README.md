@@ -12,8 +12,8 @@ Test it out [here](https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fgameboo
 
 ## How It Works
 
-1. Make sure your wallet is configured to use the Solana Devnet and that you have a Devnet SOL balance. You can get Devnet SOL [here](https://faucet.solana.com/).
-2. Choose one option to progress Toly's adventure.
-3. As Toly's story progresses, new frames of Toly's adventure are generated.
-4. Each frame is minted as a Metaplex Core NFT.
-5. The NFT is sent to a newly created PDA associated with the user.
+1. Ensure your wallet is configured to use the Solana Devnet and that you have a sufficient Devnet SOL balance. You can obtain Devnet SOL [here](https://faucet.solana.com/).
+2. Choose an option to progress Toly's adventure.
+3. As Toly's story unfolds, new frames of the adventure are generated.
+4.Each frame is minted as a Metaplex Core NFT.
+5. The NFT is sent to a newly created PDA (Program Derived Address) associated with the user.
