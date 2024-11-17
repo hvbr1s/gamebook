@@ -29,7 +29,7 @@ import {
 } from '@solana/web3.js';
 import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
 import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/anchor";
-import idl from "../solana/target/idl/pda_account.json";
+import idl from "./idl/pda_account.json";
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { publicKey, createGenericFile } from '@metaplex-foundation/umi';
 import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
@@ -416,17 +416,20 @@ app.get('/get_action', async (req, res) => {
           {
             "type": "transaction",
             "label": choiceOne,
-            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
+            "href": `https://gamebook-solana.onrender.com/post_action?choice=${encodeURIComponent(choiceOne)}`
+            //"href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
           },
           {
             "type": "transaction",
             "label": choiceTwo,
-            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
+            "href": `https://gamebook-solana.onrender.com/post_action?choice=${encodeURIComponent(choiceTwo)}`
+            //"href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
           },
           {
             "type": "transaction",
             "label": choiceThree,
-            "href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
+            "href": `https://gamebook-solana.onrender.com/post_action?choice=${encodeURIComponent(choiceThree)}`
+            //"href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
           }
         ]
       }
@@ -657,11 +660,18 @@ async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKe
   }
 }
 
-// Initialize port and start dev server
+// Start dev server
+// const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
+// app.listen(port, () => {
+//   console.log(`Listening at http://localhost:${port}/`);
+//   console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
+// });
+
+// Start prod server
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
-app.listen(port, () => {
-  console.log(`Listening at http://localhost:${port}/`);
-  console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${port}`);
+  console.log(`Mint your blinks at `)
 });
 
 export default app;
