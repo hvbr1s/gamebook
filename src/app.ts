@@ -671,7 +671,7 @@ async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKe
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${port}`);
-  console.log(`Mint your blinks at `)
+  console.log(`Mint your blinks at https://dial.to/developer?url=https%3A%2F%2Fgamebook-solana.onrender.com%2Fget_action&cluster=devnet`)
 });
 
 export default app;
