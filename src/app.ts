@@ -533,13 +533,7 @@ app.post('/post_action', async (req: Request, res: Response) => {
       },
     });
 
-    // Validate payload before sending response
-    if (payload) {
-      res.status(200).json(payload);
-      await processPostTransaction(description, playerChoice, connection, user_account, memo, PDA);
-    } else {
-      return res.status(400).json({ error: 'Invalid payload' });
-    }
+    res.status(200).json(payload);
 
     processPostTransaction(description, playerChoice, connection, user_account, memo, PDA)
 
