@@ -16,7 +16,7 @@ describe("level-4", async () => {
 
     anchor.setProvider(provider);
   
-    const program = anchor.workspace.Level3 as Program<PdaAccount>;
+    const program = anchor.workspace.PdaAccount as Program<PdaAccount>;
   
     const newMember = web3.Keypair.generate()
 
@@ -25,6 +25,8 @@ describe("level-4", async () => {
       });
 
     it("can initialize a pda", async () =>{
-        
+
+        const initialize = await program.methods.initializePda() // TO DO
+
     });
 });
