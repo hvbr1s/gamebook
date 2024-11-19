@@ -3,15 +3,10 @@ import { mplCore } from '@metaplex-foundation/mpl-core'
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys'
 import { keypairIdentity } from '@metaplex-foundation/umi'
 import { generateSigner, GenericFile } from '@metaplex-foundation/umi'
-import {
-  createCollection,
-  create,
-  fetchCollection,
-} from '@metaplex-foundation/mpl-core'
+import { create } from '@metaplex-foundation/mpl-core'
 import { fetchAsset } from '@metaplex-foundation/mpl-core'
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-// import Groq from "groq-sdk";
 import axios from 'axios';
 import { promises as promise } from 'fs';
 import * as fs from 'fs';
