@@ -28,5 +28,5 @@ Test it out [here](https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Fgameboo
 3. From the root of the project, run `npm install` to install all dependencies.  
 4. Once the dependencies are installed, run `npm run start` to start the local server.  
 5. With the server running, visit [https://www.dial.to/](https://www.dial.to/) and paste `http://localhost:8000/get_action` to display the blink.  
-6. Before progressing through the story, ensure your Solana wallet is set to `devnet` and that the blink interface is also configured for `devnet`, there should be a button in the UI that will let you switch between `Devnet` and `Mainnet`.  
+6. Before progressing through the story, ensure your Solana wallet is unlocked, set to `devnet` and that the blink interface is also configured for `devnet`, there should be a button in the UI that will let you switch between `Devnet` and `Mainnet`.  
 7. After progressing the story, wait approximately 2 minutes before refreshing the blink to display the next step of Toly's NeverEnding journey. Enjoy!
