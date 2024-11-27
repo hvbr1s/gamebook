@@ -398,7 +398,6 @@ app.get('/get_action', async (req, res) => {
 
     // Fetch the metadata from the asset's URI
     const metadata = await axios.get(asset.uri);
-    console.log(`Fetching asset metadata -> ${metadata.data} `)
 
     // Extract the required information from the metadata
     const { description, attributes, imageURI } = metadata.data;;
