@@ -9,6 +9,7 @@ import { createUmi, keypairIdentity, generateSigner, GenericFile } from "@metapl
 import { mplCore, create, fetchAsset } from "@metaplex-foundation/mpl-core";
 import { irysUploader } from "@metaplex-foundation/umi-uploader-irys";
 import { web3JsRpc } from "@metaplex-foundation/umi-rpc-web3js";
+import { web3JsEddsa } from "@metaplex-foundation/umi-eddsa-web3js";
 import { createDefaultProgramRepository } from "@metaplex-foundation/umi-program-repository";
 import { z } from "zod";
 
@@ -18,7 +19,6 @@ const {
   QUICKNODE_MAINNET_KEY,
   QUICKNODE_DEVNET_KEY,
   OPENAI_API_KEY,
-  WALLET_PATH = "./wallet.json",
   NETWORK = "mainnet",
 } = process.env as Record<string, string>;
 
@@ -52,7 +52,8 @@ const secretKey = getKeypairFromEnvironment()
 //----------------------------------
 
 const umi = createUmi()
-  .use(web3JsRpc(QUICKNODE_RPC));
+  .use(web3JsRpc(QUICKNODE_RPC))
+  .use(web3JsEddsa());
   umi.programs = createDefaultProgramRepository(umi);
   umi.use(mplCore())
   .use(irysUploader());
