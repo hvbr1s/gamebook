@@ -4,6 +4,7 @@ import * as path from "node:path";
 import dotenv from 'dotenv'
 import axios from "axios";
 import OpenAI from "openai";
+import { Keypair } from '@solana/web3.js';
 import { createUmi, keypairIdentity, generateSigner, GenericFile } from "@metaplex-foundation/umi";
 import { mplCore, create, fetchAsset } from "@metaplex-foundation/mpl-core";
 import { irysUploader } from "@metaplex-foundation/umi-uploader-irys";
@@ -30,6 +31,22 @@ const QUICKNODE_RPC =
     ? `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${QUICKNODE_MAINNET_KEY}/`
     : `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_DEVNET_KEY}/`;
 
+
+//----------------------------------
+// Wallet loader
+//----------------------------------
+
+function getKeypairFromEnvironment(): Uint8Array {
+  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
+  if (!privateKeyString) {
+    throw new Error('Minter key is not set in environment variables');
+  }
+  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
+  return new Uint8Array(privateKeyArray);
+}
+const secretKey = getKeypairFromEnvironment()
+
+
 //----------------------------------
 // Umi setup
 //----------------------------------
@@ -39,10 +56,7 @@ const umi = createUmi()
   umi.programs = createDefaultProgramRepository(umi);
   umi.use(mplCore())
   .use(irysUploader());
-const secretKey = new Uint8Array(
-  JSON.parse(fs.readFileSync(WALLET_PATH, "utf8")) as number[]
-);
-const keypair = umi.eddsa.createKeypairFromSecretKey(secretKey);
+const keypair = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
 umi.use(keypairIdentity(keypair));
 
 //----------------------------------
