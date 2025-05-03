@@ -10,3 +10,4 @@ test-ledger
 secrets
 .env
 wallet.json
+./solana
