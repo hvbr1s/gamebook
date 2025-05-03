@@ -1,676 +1,280 @@
-import { promises as promise } from 'fs';
-import * as fs from 'fs';
-import * as path from 'path';
-import dotenv from 'dotenv';
-import OpenAI from 'openai';
-import axios from 'axios';
-import cors from 'cors';
-import express, { Request, Response } from 'express';
-import { NFTConfig }  from './utils/interfaces'
-import { createNewConnection } from './utils/createSolanaConnection'
-import { getFeeInLamports } from './utils/get_fees'
-import { 
-  ACTIONS_CORS_HEADERS, 
-  ActionGetResponse, 
-  ActionPostRequest, 
-  ActionPostResponse, 
-  createPostResponse 
-} from '@solana/actions';
-import { 
-  Connection, 
-  ComputeBudgetProgram,
-  LAMPORTS_PER_SOL,
-  PublicKey, 
-  SystemProgram,
-  Transaction, 
-  TransactionInstruction,
-  TransactionSignature,
-  Keypair,
-} from '@solana/web3.js';
-import { MEMO_PROGRAM_ID } from '@solana/spl-memo';
-import { Program, Idl, AnchorProvider, setProvider, Wallet } from "@coral-xyz/anchor";
-import idl from "./idl/pda_account.json";
-import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
-import { publicKey, createGenericFile } from '@metaplex-foundation/umi';
-import { mplCore, transferV1 } from '@metaplex-foundation/mpl-core';
-import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
-import { keypairIdentity, generateSigner } from '@metaplex-foundation/umi';
-import { create, fetchAsset } from '@metaplex-foundation/mpl-core';
+import * as fs from "node:fs";
+import { promises as fsAsync } from "node:fs";
+import * as path from "node:path";
+import dotenv from 'dotenv'
+import axios from "axios";
+import OpenAI from "openai";
+import { createUmi, keypairIdentity, generateSigner, GenericFile } from "@metaplex-foundation/umi";
+import { mplCore, create, fetchAsset } from "@metaplex-foundation/mpl-core";
+import { irysUploader } from "@metaplex-foundation/umi-uploader-irys";
+import { z } from "zod";
 
-/// Load environment variable
-dotenv.config();
+dotenv.config()
 
-// Initialize Mint wallet, Program ID and Chapter Count
-const MINT = new PublicKey('AXP4CzLGxxHtXSJYh5Vzw9S8msoNR5xzpsgfMdFd11W1')
-const PROGRAM_ID = new PublicKey('BLEa4UDmpSn7URDAmmWXhg1KpTKt43Rp7bTeUgo7X3Bz');
-let CHAPTER_COUNT: number = 1;
+const {
+  QUICKNODE_MAINNET_KEY,
+  QUICKNODE_DEVNET_KEY,
+  OPENAI_API_KEY,
+  WALLET_PATH = "./wallet.json",
+  NETWORK = "mainnet",
+} = process.env as Record<string, string>;
 
-// Initiate RPC connection
-//const QUICKNODE_RPC = `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${process.env.QUICKNODE_MAINNET_KEY}/`; // mainnet
-const QUICKNODE_RPC = `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${process.env.QUICKNODE_DEVNET_KEY}/`; // devnet 
+if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY in env");
+if (!QUICKNODE_MAINNET_KEY && !QUICKNODE_DEVNET_KEY)
+  throw new Error("Missing QuickNode keys in env");
 
-// Initialize UMI instance
-const newUMI = createUmi(QUICKNODE_RPC)
+const QUICKNODE_RPC =
+  NETWORK === "mainnet"
+    ? `https://winter-solemn-sun.solana-mainnet.quiknode.pro/${QUICKNODE_MAINNET_KEY}/`
+    : `https://fragrant-ancient-needle.solana-devnet.quiknode.pro/${QUICKNODE_DEVNET_KEY}/`;
 
-// Load wallet
-function getKeypairFromEnvironment(): Uint8Array {
-  const privateKeyString = process.env.MINTER_PRIVATE_KEY;
-  if (!privateKeyString) {
-    throw new Error('Minter key is not set in environment variables');
-  }
-  // Convert the private key string to an array of numbers
-  const privateKeyArray = privateKeyString.split(',').map(num => parseInt(num, 10));
-  // Return a Uint8Array from the array of numbers
-  return new Uint8Array(privateKeyArray);
-}
-const secretKey = getKeypairFromEnvironment()
-const payerKeypair = Keypair.fromSecretKey(secretKey);
+//----------------------------------
+// Umi setup
+//----------------------------------
 
-// Initialize UMI instance with wallet
-const keypair = newUMI.eddsa.createKeypairFromSecretKey(new Uint8Array(secretKey))
-const umi = newUMI
+const umi = createUmi()
   .use(mplCore())
-  .use(irysUploader({
-    address:"https://turbo.ardrive.io"
-  }))
-  .use(keypairIdentity(keypair));
+  .use(irysUploader());
 
-// Initialize program object
-async function initializeProgram(connection): Promise<Program<Idl>> {
-  const wallet = new Wallet(payerKeypair);
-  const provider = new AnchorProvider(connection, wallet, {});
-  setProvider(provider);
-  const program = new Program(idl as Idl, provider);
-  return program;
+const secretKey = new Uint8Array(
+  JSON.parse(fs.readFileSync(WALLET_PATH, "utf8")) as number[]
+);
+const keypair = umi.eddsa.createKeypairFromSecretKey(secretKey);
+umi.use(keypairIdentity(keypair));
+
+//----------------------------------
+// Types & schemas
+//----------------------------------
+
+interface Attribute {
+  trait_type: string;
+  value: string;
 }
 
-async function createPda(PROGRAM: Program, user_account: PublicKey, payer: Keypair, chapter: number): Promise<string> {
-  try {
-
-    console.log(`Creating PDA for user: ${user_account.toString()}`);
-
-    const chapter_increment =  chapter + 1
-    console.log(`Toly's story is progressing to Chapter ${chapter_increment} 📖🧙‍♂️`)
-
-    // Derive the PDA
-    const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("gamebook_toly"), user_account.toBuffer()],
-      PROGRAM.programId
-    );
-
-    const tx = await PROGRAM.methods
-    .initializePda(chapter_increment)
-    .accounts({
-      user: user_account,
-      payer: payer.publicKey,
-      pdaAccount: pda,
-      systemProgram: SystemProgram.programId,
-    })
-    .signers([payer])
-    .rpc();
-
-    console.log('Transaction signature:', tx);
-    console.log('PDA initialized:', pda.toString());
-    
-    return pda.toString();
-
-  } catch (error) {
-    console.error('Error in createPda:', error);
-    throw error;
-  }
+interface NftConfig {
+  uploadPath: string;
+  imgFileName: string;
+  imgType: "image/png";
+  imgName: string;
+  description: string;
+  attributes: Attribute[];
 }
 
-///// AI LOGIC
-const oai_client = new OpenAI({apiKey: process.env['OPENAI_API_KEY']});
-const gpt_llm = "gpt-4o-2024-08-06"
+interface UriConfig extends NftConfig {
+  imageURI: string;
+}
 
-async function consequence(description,playerChoice): Promise<string>{
-
-  const generateStory = await oai_client.chat.completions.create({
-    messages: [
-        {
-            role: "system",
-            content: `You are an expert storyteller and narrator for an interactive medieval fantasy gamebook. 
-            Your task is to continue the story of Toly, a knight of Solana, in a compelling and engaging manner. 
-            Craft your narratives to be vivid yet concise.`
-        },
-        {
-            role: "user",
-            content: `
-                Based on the following story so far:
-                '${description}'
-                Toly decided the following:
-                '${playerChoice}'
-                Please write ONE SENTENCE about the direct consequences of Toly's action on the story.`
-        }
-    ],
-    model: gpt_llm,
-    temperature: 0.7,
+const SceneSchema = z.object({
+  story_continues: z.string().min(10),
+  scene_name: z.string().min(3),
+  logical_choice: z.string().min(1).max(50),
+  prudent_choice: z.string().min(1).max(50),
+  reckless_choice: z.string().min(1).max(50),
 });
 
-const storyContinues = generateStory.choices[0].message.content;
+//----------------------------------
+// OpenAI client
+//----------------------------------
 
-return storyContinues
+const oai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const GPT_MODEL = "gpt-4.1";
+
+//----------------------------------
+// Helpers
+//----------------------------------
+
+const logger = {
+  info: console.log.bind(console, "[INFO]"),
+  error: console.error.bind(console, "[ERROR]"),
+};
+
+function toSlug(str: string) {
+  return str.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
-async function defineConfig(storySoFar: string, choiceConsequence: string): Promise<NFTConfig> {
-    try {
-        const random_num = Math.random();
-        let scene_type: string;
+//----------------------------------
+// Story generation
+//----------------------------------
 
-        if (random_num < 0.2) {
-            scene_type = "combat";
-            console.log(`Let's create a ${scene_type} scene 🖼️`)
-        } else if (random_num < 0.4) {
-            scene_type = "ominous";
-            console.log(`Let's create an ${scene_type} scene 🖼️`)
-        } else if (random_num < 0.6) {
-            scene_type = "bizarre";
-            console.log(`Let's create a ${scene_type} scene 🖼️`)
-        } else if (random_num < 0.9) {
-            scene_type = "heroic";
-            console.log(`Let's create a ${scene_type} scene 🖼️`)
-        }
+async function defineConfig(storySoFar: string): Promise<NftConfig> {
+  const completion = await oai.chat.completions.create({
+    model: GPT_MODEL,
+    temperature: 0.7,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an expert storyteller and narrator for an interactive medieval fantasy gamebook. Your task is to continue the story of Toly, a knight of Solana, in a compelling and engaging manner. Each scene you create will be turned into an NFT, representing a crucial decision point in Toly's journey. Craft your narratives to be vivid yet concise, always ending with a cliffhanger that presents three distinct choices for the protagonist.",
+      },
+      {
+        role: "user",
+        content: `Based on the following story so far:\n'${storySoFar}'\n\nGenerate the next scene JSON using the exact structure and constraints previously described.`,
+      },
+    ],
+  });
 
-        const nftAttributes = await oai_client.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content: "You are an expert storyteller and narrator for an interactive medieval fantasy gamebook. Your task is to continue the story of Toly, a knight of Solana, in a compelling and engaging manner. Each scene you create will be turned into an NFT, representing a crucial decision point in Toly's journey. Craft your narratives to be vivid yet concise, always ending with a cliffhanger that presents three distinct choices for the protagonist."
-                },
-                {
-                    role: "user",
-                    content: `
-                        Based on the following story so far:
-                        '${storySoFar}'
+  const raw = completion.choices[0]?.message?.content ?? "{}";
+  const parsed = SceneSchema.safeParse(JSON.parse(raw));
 
-                        Generate a JSON object for the next scene in Toly's adventure. Follow these guidelines:
-
-                        1. The "story_continues" should be a brief ${scene_type} scene (maximum 50 words) focused on Toly but narrated in third person. End with a cliffhanger that leads to three choices.
-                        2. The "scene_name" should be a short, catchy title for this part of the story (3-5 words).
-                        3. Provide three distinct choices for Toly, each reflecting a different approach (6 words maximum):
-                           - "logical_choice": A rational, well-thought-out option.
-                           - "prudent_choice": A careful, risk-averse option.
-                           - "reckless_choice": A bold, potentially dangerous option or an option that starts or continue combat.
-
-                        Return only the JSON object without any additional comments or text. Use the following structure:
-
-                        {
-                            "story_continues": "",
-                            "scene_name": "",
-                            "logical_choice": "",
-                            "prudent_choice": "",
-                            "reckless_choice": ""
-                        }
-
-                        Ensure your response is a valid JSON object that can be parsed without errors.
-                    `
-                }
-            ],
-            model: gpt_llm,
-            temperature: 0.7,
-            response_format: { type: "json_object" },
-        });
-
-        const llmResponse = JSON.parse(nftAttributes.choices[0]?.message?.content || "{}");
-
-        if (!llmResponse.story_continues || !llmResponse.scene_name || 
-            !llmResponse.logical_choice || !llmResponse.prudent_choice || !llmResponse.reckless_choice) {
-            throw new Error("Incomplete response from LLM");
-        }
-
-        const CONFIG: NFTConfig = {
-            uploadPath: './image/',
-            imgFileName: `${llmResponse.scene_name.replace(/\s+/g, '-').toLowerCase()}`,
-            imgType: 'image/png',
-            imgName: llmResponse.scene_name,
-            description: `${choiceConsequence} ${llmResponse.story_continues}`,
-            imageURI: '',
-            attributes: [
-                {trait_type: 'Logical Choice', value: llmResponse.logical_choice},
-                {trait_type: 'Prudent Choice', value: llmResponse.prudent_choice},
-                {trait_type: 'Reckless Choice', value: llmResponse.reckless_choice}
-            ],
-            properties: {
-              files: [
-                {
-                  uri: '',
-                  type: 'image/png',
-                },
-              ],
-              category: 'image',
-            },
-        };
-
-        return CONFIG;
-    } catch (error) {
-        console.error("Error in defineConfig:", error);
-        throw error;
-    }
-}
-
-async function createImage(CONFIG: NFTConfig): Promise<string> {
-    try {
-      // Enhance the prompt for better image generation
-      const enhancedPrompt = `Create a medieval fantasy scene depicting: ${CONFIG.description} 
-      The protagonist holds a sword and wears a red cape and red metallic helmet that masks his head, body type could be male or female.
-      The image should capture the essence of the scene without showing text or specific choices. 
-      IMPORTANT: DO NOT GENERATE TEXT.
-      Style: Watercolor.`;
-  
-      const response = await oai_client.images.generate({
-        model: "dall-e-3",
-        prompt: enhancedPrompt,
-        n: 1,
-        size: "1024x1024",
-        quality: 'standard'
-      });
-  
-      const imageUrl = response.data[0].url;
-      if (!imageUrl) {
-        throw new Error("No image URL received from the API");
-      }
-  
-      // Fetch the image from the URL
-      const imageResponse = await axios({
-        url: imageUrl,
-        method: 'GET',
-        responseType: 'arraybuffer'
-      });
-  
-      // Use the CONFIG.uploadPath and imgFileName for consistency
-      const imagePath = path.join(CONFIG.uploadPath, `${CONFIG.imgFileName}.png`);
-  
-      // Ensure the directory exists
-      fs.mkdirSync(path.dirname(imagePath), { recursive: true });
-  
-      // Write the image data to a file
-      await fs.promises.writeFile(imagePath, imageResponse.data);
-  
-      return imagePath;
-    } catch (error) {
-      console.error("Error in createImage:", error);
-      throw error;
-    }
+  if (!parsed.success) {
+    logger.error("LLM response validation failed", parsed.error);
+    throw new Error("Invalid LLM response");
   }
 
-async function updateConfigWithImageUri(config: NFTConfig, imageUri: string): Promise<NFTConfig> {
+  const {
+    scene_name,
+    story_continues,
+    logical_choice,
+    prudent_choice,
+    reckless_choice,
+  } = parsed.data;
+
   return {
-    ...config,
-    imageURI: imageUri,
-    properties: {
-      ...config.properties,
-      files: [
-        {
-          uri: imageUri,
-          type: config.imgType,
-        },
-      ],
-    },
+    uploadPath: "./image",
+    imgFileName: toSlug(scene_name),
+    imgType: "image/png",
+    imgName: scene_name,
+    description: story_continues,
+    attributes: [
+      { trait_type: "Logical Choice", value: logical_choice },
+      { trait_type: "Prudent Choice", value: prudent_choice },
+      { trait_type: "Reckless Choice", value: reckless_choice },
+    ],
   };
 }
 
-async function createURI(imagePath: string, CONFIG: NFTConfig): Promise<string> {
-  try {
-    // Read the image file
-    const imageBuffer = await promise.readFile(imagePath);
-  
-    // Create a GenericFile object
-    const umiImageFile = createGenericFile(
-      imageBuffer,
-      CONFIG.imgFileName,
-      {
-        displayName: CONFIG.imgName,
-        uniqueName: CONFIG.imgFileName,
-        contentType: CONFIG.imgType,
-        extension: CONFIG.imgFileName.split('.').pop() || 'png',
-        tags: [{ name: 'Content-Type', value: CONFIG.imgType }],
-      }
-    );
-  
-    // Upload the image and get its URI
-    const [imageUri] = await umi.uploader.upload([umiImageFile]);
-    if (!imageUri) {
-      throw new Error("Failed to upload image");
-    }
-    console.log('Image uploaded, URI:', imageUri);
-  
-    // Add the image URI to the config
-    const configWithUri = await updateConfigWithImageUri(CONFIG, imageUri)
-    console.log(configWithUri)
-  
-    // Upload the JSON metadata
-    const metadataUri = await umi.uploader.uploadJson(configWithUri);
-    if (!metadataUri) {
-      throw new Error("Failed to upload metadata");
-    }
-  
-    return metadataUri;
-  
-  } catch (error) {
-    console.error("Error in createURI:", error);
-    throw error;
-  }
-  }
+//----------------------------------
+// Image generation
+//----------------------------------
 
-  async function createAsset(CONFIG: NFTConfig, uri: string): Promise<string> {
-    try {
-      // Generate a new signer for the asset
-      const assetSigner = generateSigner(umi);
-      console.log(`Creating asset with metadata: ${uri}`)
-  
-      // Create the asset
-      await create(umi, {
-        asset: assetSigner,
-        name: CONFIG.imgName,
-        uri: uri,
-      }).sendAndConfirm(umi);
-  
-      console.log(`Asset address: ${assetSigner.publicKey}`);
-  
-      return assetSigner.publicKey.toString();
-    } catch (error) {
-      console.error("Error in createAsset:", error);
-      throw error;
-    }
-  }
+async function createImage(config: NftConfig): Promise<string> {
+  const prompt = `Create a watercolor-style medieval fantasy scene. Depict: ${config.description}. The protagonist wears a red metallic helmet that masks the head (gender ambiguous). No text, no explicit choices.`;
 
-// Declaring global assetAddress
-let assetAddress: string = "9sR9xtvZJ4Af6oE77V8kemCLnJg8zhhLDx9gAZ3WfrQi"; //forest start devnet
-//let assetAddress: string = "6mf9AD115ozEWNvkdUqmCDvALan64eXyFjiUkr72KVej"; //forest start on mainnet
-let onceUponATime: string = "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
-  
-/////// APP ///////
-// Create a new express application instance
-const app: express.Application = express();
-app.use(cors());
-app.use(express.json());
+  const { data } = await oai.images.generate({
+    model: "dall-e-3",
+    prompt,
+    n: 1,
+    size: "1024x1024",
+    quality: "auto",
+    style:"vivid"
+  });
 
-app.get('/get_action', async (req, res) => {
-  try {
-    if (!assetAddress) {
-      throw new Error('Asset address not set');
-    }
+  const url = data[0]?.url;
+  if (!url) throw new Error("Image generation failed – missing URL");
 
-    // Fetch the asset using the provided UMI instance
-    const asset = await fetchAsset(umi, assetAddress);
-    console.log(`Fetching asset -> ${asset.uri}`)
+  const { data: imgBuffer } = await axios.get<ArrayBuffer>(url, {
+    responseType: "arraybuffer",
+  });
 
-    // Fetch the metadata from the asset's URI
-    const metadata = await axios.get(asset.uri);
+  const dir = path.resolve(config.uploadPath);
+  await fsAsync.mkdir(dir, { recursive: true });
 
-    // Extract the required information from the metadata
-    const { description, attributes, imageURI } = metadata.data;;
-    console.log(`Displaying: ${imageURI}`)
-    const [choiceOne, choiceTwo, choiceThree] = attributes.map(attr => attr.value);
+  const filePath = path.join(dir, `${config.imgFileName}.png`);
+  await fsAsync.writeFile(filePath, Buffer.from(imgBuffer));
 
-    const payload: ActionGetResponse = {
-      type: 'action',
-      icon: imageURI,
-      label: "Continue Toly's Journey",
-      title: "Toly's NeverEnding Adventure⚔️",
-      description: description,
-      links: {
-        actions: [
-          {
-            "type": "transaction",
-            "label": choiceOne,
-            "href": `https://gamebook-solana.onrender.com/post_action?choice=${encodeURIComponent(choiceOne)}`
-            //"href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceOne)}`
-          },
-          {
-            "type": "transaction",
-            "label": choiceTwo,
-            "href": `https://gamebook-solana.onrender.com/post_action?choice=${encodeURIComponent(choiceTwo)}`
-            //"href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceTwo)}`
-          },
-          {
-            "type": "transaction",
-            "label": choiceThree,
-            "href": `https://gamebook-solana.onrender.com/post_action?choice=${encodeURIComponent(choiceThree)}`
-            //"href": `http://localhost:8000/post_action?choice=${encodeURIComponent(choiceThree)}`
-          }
-        ]
-      }
-    };
-
-    res.header(ACTIONS_CORS_HEADERS).status(200).json(payload);
-  } catch (error) {
-    console.error("Error handling GET request:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-app.options('/post_action', (req: Request, res: Response) => {
-  res.header(ACTIONS_CORS_HEADERS).status(200).end();
-});
-
-app.post('/post_action', async (req: Request, res: Response) => {
-  try {
-    
-    if (!assetAddress) {
-      throw new Error('Asset address is not defined');
-    }
-    const asset = await fetchAsset(umi, assetAddress);
-    const assetUri = asset.uri;
-    const response = await axios.get(assetUri);
-    const metadata = response.data;
-    const { description } = metadata;
-    console.log(description);
-
-    const playerChoice = typeof req.query.choice === 'string' 
-      ? decodeURIComponent(req.query.choice) 
-      : '';
-    console.log(playerChoice);
-    
-    let user_account: PublicKey;
-    try {
-      const body: ActionPostRequest = req.body;
-      user_account = new PublicKey(body.account);
-    } catch (error) {
-      console.error('Invalid account:', error);
-      return res.status(400).json({ error: 'Invalid account' });
-    }
-
-    const connection = await createNewConnection(QUICKNODE_RPC);
-
-    // Derive PDA
-    const [PDA] = PublicKey.findProgramAddressSync(
-      [Buffer.from("gamebook_toly"), user_account.toBuffer()],
-      PROGRAM_ID,
-    );
-
-    // Check if PDA already exists
-    const pdaInfo = await connection.getAccountInfo(PDA);
-    if (!pdaInfo) {
-      // PDA doesn't exist, create it
-      console.log("Creating PDA for user...");
-      const program = await initializeProgram(connection)
-      const pda_account_address = await createPda(program, user_account, payerKeypair, CHAPTER_COUNT);
-      console.log(`PDA account for user created at ${pda_account_address}`);
-    } else {
-      console.log("PDA already exists for this user");
-    }
-
-    const {blockhash} = await connection.getLatestBlockhash();
-    console.log(`Latest blockhash: ${blockhash}`)
-
-    const mintingFee = await getFeeInLamports();
-    const mintingFeeSOL = mintingFee / LAMPORTS_PER_SOL;
-    console.log(`Fee for this transaction -> ${mintingFee} lamports or ${mintingFeeSOL} SOL.`);
-
-    const transaction = new Transaction();
-    transaction.add(
-      SystemProgram.transfer({
-        fromPubkey: user_account,
-        toPubkey: MINT,
-        lamports: mintingFee,
-      })
-    );
-    const memo = (Math.floor(Math.random() * 100000)).toString();
-    // Adding memo
-    transaction.add(
-      new TransactionInstruction({
-        keys: [],
-        programId: MEMO_PROGRAM_ID,
-        data: Buffer.from(memo, 'utf-8'),
-      })
-    );
-
-    // Set computational resources for transaction
-    transaction.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 20_000 }))
-    transaction.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100 }))
-
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = user_account;
-
-    const payload: ActionPostResponse = await createPostResponse({
-      fields: {
-        type: 'transaction',
-        transaction: transaction,
-        message: "The adventure continues! WAIT 2 MINUTES and refresh the page to see what happens next!",
-      },
-    });
-
-    res.status(200).json(payload);
-
-    processPostTransaction(description, playerChoice, connection, user_account, memo, PDA)
-
-  } catch (error) {
-    console.error('An error occurred:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Stack trace:', error.stack);
-    }
-    // Don't send another response if one has already been sent
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'An internal server error occurred' });
-    }
-  }
-});
-
-async function findTransactionWithMemo(connection: Connection, userAccount: PublicKey, memo: string): Promise<TransactionSignature | null> {
-  const maxChecks = 10;
-  let checkCount = 0;
-
-  console.log(`Searching for memo: "${memo}"`);
-
-  while (checkCount < maxChecks) {
-    console.log(`Check ${checkCount + 1} of ${maxChecks}`);
-    
-    const signatures = await connection.getSignaturesForAddress(userAccount, 
-      { limit: 5 },
-      'confirmed'
-    );
-
-    for (const sigInfo of signatures) {
-      console.log(`Checking signature: ${sigInfo.signature}`);
-      console.log(`Signature memo: "${sigInfo.memo}"`);
-      
-      if (sigInfo.memo && sigInfo.memo.includes(memo)) {
-        console.log("Memo match found!");
-        return sigInfo.signature;
-      } else {
-        console.log("No match");
-      }
-    }
-
-    checkCount++;
-
-    if (checkCount < maxChecks) {
-      console.log("Waiting 5 seconds before next check...");
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-  }
-
-  console.log("Maximum checks reached, no matching memo found");
-  return null;
+  logger.info("Saved image to", filePath);
+  return filePath;
 }
 
-async function processPostTransaction(description: string, playerChoice: string, connection: Connection, user_account:PublicKey, memo:string, pda: PublicKey) {
+//----------------------------------
+// Upload assets & metadata
+//----------------------------------
 
-  const transactionSignature = await findTransactionWithMemo(connection, user_account, memo);
+async function createURI(
+  imagePath: string,
+  config: NftConfig
+): Promise<{ imageUri: string; metadataUri: string }> {
+  const imageBuffer = await fsAsync.readFile(imagePath);
 
-  if (transactionSignature) {
-    console.log(`Found transaction with memo: ${transactionSignature}`);
+  const imageFile: GenericFile = {
+    buffer: imageBuffer,
+    fileName: config.imgFileName,
+    displayName: config.imgName,
+    uniqueName: config.imgFileName,
+    contentType: config.imgType,
+    extension: "png",
+    tags: [],
+  };
 
-    try {
-      const choiceConsequence = await consequence(description, playerChoice);
-      console.log(choiceConsequence);
-      const continueStory = `${onceUponATime}\n\n${choiceConsequence}`;
-  
-      console.log("Defining config for the new scene...");
-      const CONFIG = await defineConfig(continueStory, choiceConsequence);
-      console.log("Config defined:", CONFIG);
-  
-      console.log("Creating image...");
-      const imagePath = await createImage(CONFIG);
-      console.log("Image created at:", imagePath);
-  
-      console.log("Creating URI 🔗 ...");
-      const uri = await createURI(imagePath, CONFIG);
-      console.log("Metadata URI created:", uri);
-  
-      console.log("Creating asset ⛏️ ...");
-      const newAssetAddress = await createAsset(CONFIG, uri);
+  const [imageUri] = await umi.uploader.upload([imageFile]);
+  if (!imageUri) throw new Error("Image upload failed");
 
-      // Update the global assetAddress with the new asset address
-      assetAddress = newAssetAddress;
-      CHAPTER_COUNT += 1;
-      console.log("Global assetAddress updated to:", assetAddress);
-      console.log("Chapter count updated to:", CHAPTER_COUNT);
+  const metadataUri = await umi.uploader.uploadJson({
+    ...config,
+    imageURI: imageUri,
+  });
 
-      // Transfer asset to PDA
-      await transferNFTToPDA(new PublicKey(newAssetAddress), pda);
-  
-      fs.unlink(imagePath, (err) => {
-        if (err) {
-          console.error('Failed to delete the local image file:', err);
-        } else {
-          console.log(`Local image file deleted successfully 🗑️`);
-        }
-      });
-    
-      console.log("Process completed successfully!");
-    } catch (error) {
-      console.error("An error occurred in the post-transaction process:", error);
-      throw error;
-    }
-  }else{
-    console.log("Oops, couldn't find the transaction!")
-  }
+  return { imageUri, metadataUri };
 }
 
-async function transferNFTToPDA(newAssetAddress: PublicKey, pdaAddress: PublicKey) {
+//----------------------------------
+// Mint NFT asset
+//----------------------------------
+
+async function createAsset(
+  uriConfig: UriConfig,
+  metadataUri: string
+): Promise<string> {
+  const assetSigner = generateSigner(umi);
+
+  const { signature } = await create(umi, {
+    asset: assetSigner,
+    name: uriConfig.imgName,
+    uri: metadataUri,
+  }).sendAndConfirm(umi);
+
+  logger.info("Asset minted", signature);
+  return assetSigner.publicKey.toString();
+}
+
+//----------------------------------
+// Fetch on-chain asset data
+//----------------------------------
+
+async function fetchImageFromAsset(address: string): Promise<string> {
+  const asset = await fetchAsset(umi, address, { skipDerivePlugins: false });
+  const { data } = await axios.get<{ imageURI: string }>(asset.uri);
+  return data.imageURI;
+}
+
+//----------------------------------
+// Main orchestration
+//----------------------------------
+
+export async function main() {
   try {
+    const storySoFar =
+      "Toly, the knight of Solana, stood at the edge of the Enchanted Forest, his quest to save the kingdom just beginning.";
 
-    const asset = await fetchAsset(umi, newAssetAddress.toString())
+    // 1️⃣ Generate metadata config
+    logger.info("Generating scene with GPT‑4o …");
+    const cfg = await defineConfig(storySoFar);
 
-    const result = await transferV1(umi, {
-      asset:publicKey(asset),
-      newOwner: publicKey(pdaAddress.toString()),
-    })
-    .sendAndConfirm(umi);
+    // 2️⃣ Create illustration
+    logger.info("Creating illustration with DALL·E 3 …");
+    const imagePath = await createImage(cfg);
 
-    console.log(`NFT transferred to PDA: ${pdaAddress}`);
-    return result.signature;
-  } catch (error) {
-    console.log('Error transferring NFT to PDA!');
+    // 3️⃣ Upload files
+    logger.info("Uploading image and metadata …");
+    const { imageUri, metadataUri } = await createURI(imagePath, cfg);
+
+    // 4️⃣ Mint NFT
+    const uriCfg: UriConfig = { ...cfg, imageURI: imageUri };
+    logger.info("Minting NFT …");
+    const assetAddress = await createAsset(uriCfg, metadataUri);
+
+    // 5️⃣ House‑keeping (delete local file)
+    fs.unlink(imagePath, (e) => e && logger.error("Cleanup error", e));
+
+    // 6️⃣ Verify (optional)
+    const onChainImage = await fetchImageFromAsset(assetAddress);
+    logger.info("✅ Done! On‑chain image URI:", onChainImage);
+  } catch (err) {
+    logger.error(err);
+    process.exitCode = 1;
   }
 }
-
-// Start dev server
-// const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
-// app.listen(port, () => {
-//   console.log(`Listening at http://localhost:${port}/`);
-//   console.log(`Test your blinks http://localhost:${port}/get_action \n at https://www.dial.to/`)
-// });
-
-// Start prod server
-const port: number = process.env.PORT ? parseInt(process.env.PORT) : 8000;
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on http://0.0.0.0:${port}`);
-  console.log(`Mint your blinks at https://dial.to/developer?url=https%3A%2F%2Fgamebook-solana.onrender.com%2Fget_action&cluster=devnet`)
-});
-
-export default app;
+if (require.main === module) {
+  main();
+}
